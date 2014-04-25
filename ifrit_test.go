@@ -39,8 +39,8 @@ var _ = Describe("Ifrit", func() {
 				It("returns the run result upon completion", func() {
 					err1 := <-errChan
 					err2 := <-errChan
-					Ω(err1).Should(Equal(PingExitNormal))
-					Ω(err2).Should(Equal(PingExitNormal))
+					Ω(err1).Should(Equal(PingerExitedFromPing))
+					Ω(err2).Should(Equal(PingerExitedFromPing))
 				})
 			})
 		})
@@ -51,7 +51,7 @@ var _ = Describe("Ifrit", func() {
 			})
 			It("sends the signal to the runner", func() {
 				err := pingProc.Wait()
-				Ω(err).Should(Equal(PingExitSignal))
+				Ω(err).Should(Equal(PingerExitedFromSignal))
 			})
 		})
 	})

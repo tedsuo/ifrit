@@ -39,15 +39,15 @@ var _ = Describe("Linker", func() {
 				errMsg := err.Error()
 				Ω(errMsg).Should(ContainSubstring("ping1"))
 				Ω(errMsg).Should(ContainSubstring("ping2"))
-				Ω(errMsg).Should(ContainSubstring(PingExitSignal.Error()))
+				Ω(errMsg).Should(ContainSubstring(PingerExitedFromSignal.Error()))
 			})
 
 			It("propagates signals to the process group", func() {
 				err1 := pingProc1.Wait()
-				Ω(err1).Should(Equal(PingExitSignal))
+				Ω(err1).Should(Equal(PingerExitedFromSignal))
 
 				err2 := pingProc2.Wait()
-				Ω(err2).Should(Equal(PingExitSignal))
+				Ω(err2).Should(Equal(PingerExitedFromSignal))
 			})
 		})
 	})
