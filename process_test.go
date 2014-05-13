@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-var _ = Describe("Ifrit", func() {
+var _ = Describe("Process", func() {
 	Context("when a process is envoked", func() {
 		var pinger PingChan
 		var pingProc ifrit.Process
