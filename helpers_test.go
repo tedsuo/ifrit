@@ -12,7 +12,8 @@ var PingerExitedFromSignal = errors.New("pinger exited with a signal")
 
 type PingChan chan Ping
 
-func (p PingChan) Run(sigChan <-chan os.Signal) error {
+func (p PingChan) Run(sigChan <-chan os.Signal, ready chan<- struct{}) error {
+	close(ready)
 	select {
 	case <-sigChan:
 		return PingerExitedFromSignal

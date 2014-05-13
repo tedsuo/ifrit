@@ -5,28 +5,30 @@ import (
 	"sync"
 )
 
-type Runner interface {
-	Run(<-chan os.Signal) error
-}
-
-type RunFunc func(<-chan os.Signal) error
-
-func (r RunFunc) Run(sig <-chan os.Signal) error {
-	return r(sig)
-}
-
 type Process interface {
 	Wait() error
 	Signal(os.Signal)
 }
 
 func Envoke(r Runner) Process {
+	switch r := r.(type) {
+	case RunGroup:
+		return envokeGroup(r)
+	default:
+		return envokeProcess(r)
+	}
+
+}
+
+func envokeProcess(r Runner) Process {
 	p := &process{
 		runner:         r,
 		sig:            make(chan os.Signal),
 		exitStatusChan: make(chan error, 1),
+		ready:          make(chan struct{}),
 	}
 	go p.run()
+	<-p.ready
 	return p
 }
 
@@ -35,11 +37,12 @@ type process struct {
 	sig            chan os.Signal
 	exitStatus     error
 	exitStatusChan chan error
+	ready          chan struct{}
 	exitOnce       sync.Once
 }
 
 func (p *process) run() {
-	p.exitStatusChan <- p.runner.Run(p.sig)
+	p.exitStatusChan <- p.runner.Run(p.sig, p.ready)
 }
 
 func (p *process) Wait() error {
