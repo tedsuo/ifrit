@@ -40,17 +40,28 @@ func (group processGroup) Signal(signal os.Signal) {
 	}
 }
 
-func (group processGroup) Wait() error {
+func (group processGroup) waitForGroup() error {
 	var errMsg string
 	for name, p := range group {
-		err := p.Wait()
+		err := <-p.Wait()
 		if err != nil {
 			errMsg += fmt.Sprintf("%s: %s/n", name, err)
 		}
 	}
 
+	var err error
 	if errMsg != "" {
-		return errors.New(errMsg)
+		err = errors.New(errMsg)
 	}
-	return nil
+	return err
+}
+
+func (group processGroup) Wait() <-chan error {
+	errChan := make(chan error, 1)
+
+	go func() {
+		errChan <- group.waitForGroup()
+	}()
+
+	return errChan
 }

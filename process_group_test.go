@@ -31,7 +31,7 @@ var _ = Describe("ProcessGroup", func() {
 			})
 
 			It("exits with a combined error message", func() {
-				err := pGroup.Wait()
+				err := <-pGroup.Wait()
 				errMsg := err.Error()
 				Ω(errMsg).Should(ContainSubstring("ping1"))
 				Ω(errMsg).Should(ContainSubstring("ping2"))

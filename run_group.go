@@ -15,16 +15,8 @@ func (r RunGroup) Run(sig <-chan os.Signal, ready chan<- struct{}) error {
 		select {
 		case signal := <-sig:
 			p.Signal(signal)
-		case err := <-onError(p.Wait):
+		case err := <-p.Wait():
 			return err
 		}
 	}
-}
-
-func onError(f func() error) chan error {
-	errChan := make(chan error)
-	go func() {
-		errChan <- f()
-	}()
-	return errChan
 }

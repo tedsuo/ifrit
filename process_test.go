@@ -1,10 +1,10 @@
 package ifrit_test
 
 import (
+	"os"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/tedsuo/ifrit"
-	"os"
 )
 
 var _ = Describe("Process", func() {
@@ -22,10 +22,10 @@ var _ = Describe("Process", func() {
 		Describe("Wait()", func() {
 			BeforeEach(func() {
 				go func() {
-					errChan <- pingProc.Wait()
+					errChan <- <-pingProc.Wait()
 				}()
 				go func() {
-					errChan <- pingProc.Wait()
+					errChan <- <-pingProc.Wait()
 				}()
 			})
 
@@ -50,7 +50,7 @@ var _ = Describe("Process", func() {
 				pingProc.Signal(os.Kill)
 			})
 			It("sends the signal to the runner", func() {
-				err := pingProc.Wait()
+				err := <-pingProc.Wait()
 				Ω(err).Should(Equal(PingerExitedFromSignal))
 			})
 		})
