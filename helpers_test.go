@@ -3,6 +3,8 @@ package ifrit_test
 import (
 	"errors"
 	"os"
+
+	"github.com/tedsuo/ifrit"
 )
 
 type Ping struct{}
@@ -21,3 +23,9 @@ func (p PingChan) Run(sigChan <-chan os.Signal, ready chan<- struct{}) error {
 		return PingerExitedFromPing
 	}
 }
+
+var NoReadyExitedNormally = errors.New("no ready exited normally")
+
+var NoReadyRunner = ifrit.RunFunc(func(sigChan <-chan os.Signal, ready chan<- struct{}) error {
+	return NoReadyExitedNormally
+})

@@ -49,10 +49,24 @@ var _ = Describe("Process", func() {
 			BeforeEach(func() {
 				pingProc.Signal(os.Kill)
 			})
+
 			It("sends the signal to the runner", func() {
 				err := <-pingProc.Wait()
 				Ω(err).Should(Equal(PingerExitedFromSignal))
 			})
+		})
+	})
+
+	Context("when a process exits without closing ready", func() {
+		var proc ifrit.Process
+
+		BeforeEach(func(done Done) {
+			proc = ifrit.Envoke(NoReadyRunner)
+			close(done)
+		})
+
+		It("waits normally", func() {
+			Ω(<-proc.Wait()).Should(Equal(NoReadyExitedNormally))
 		})
 	})
 })

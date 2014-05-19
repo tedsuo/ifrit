@@ -28,7 +28,12 @@ func envokeProcess(r Runner) Process {
 		ready:          make(chan struct{}),
 	}
 	go p.run()
-	<-p.ready
+
+	select {
+	case <-p.ready:
+	case <-p.Wait():
+	}
+
 	return p
 }
 
