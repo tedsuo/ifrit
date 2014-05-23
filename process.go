@@ -11,13 +11,7 @@ type Process interface {
 }
 
 func Envoke(r Runner) Process {
-	switch r := r.(type) {
-	case RunGroup:
-		return envokeGroup(r)
-	default:
-		return envokeProcess(r)
-	}
-
+	return envokeProcess(r)
 }
 
 func envokeProcess(r Runner) Process {

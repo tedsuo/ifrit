@@ -5,16 +5,17 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/tedsuo/ifrit"
+	"github.com/tedsuo/ifrit/test_helpers"
 )
 
 var _ = Describe("Process", func() {
 	Context("when a process is envoked", func() {
-		var pinger PingChan
+		var pinger test_helpers.PingChan
 		var pingProc ifrit.Process
 		var errChan chan error
 
 		BeforeEach(func() {
-			pinger = make(PingChan)
+			pinger = make(test_helpers.PingChan)
 			pingProc = ifrit.Envoke(pinger)
 			errChan = make(chan error)
 		})
@@ -39,8 +40,8 @@ var _ = Describe("Process", func() {
 				It("returns the run result upon completion", func() {
 					err1 := <-errChan
 					err2 := <-errChan
-					Ω(err1).Should(Equal(PingerExitedFromPing))
-					Ω(err2).Should(Equal(PingerExitedFromPing))
+					Ω(err1).Should(Equal(test_helpers.PingerExitedFromPing))
+					Ω(err2).Should(Equal(test_helpers.PingerExitedFromPing))
 				})
 			})
 		})
@@ -52,7 +53,7 @@ var _ = Describe("Process", func() {
 
 			It("sends the signal to the runner", func() {
 				err := <-pingProc.Wait()
-				Ω(err).Should(Equal(PingerExitedFromSignal))
+				Ω(err).Should(Equal(test_helpers.PingerExitedFromSignal))
 			})
 		})
 	})
@@ -61,12 +62,12 @@ var _ = Describe("Process", func() {
 		var proc ifrit.Process
 
 		BeforeEach(func(done Done) {
-			proc = ifrit.Envoke(NoReadyRunner)
+			proc = ifrit.Envoke(test_helpers.NoReadyRunner)
 			close(done)
 		})
 
 		It("waits normally", func() {
-			Ω(<-proc.Wait()).Should(Equal(NoReadyExitedNormally))
+			Ω(<-proc.Wait()).Should(Equal(test_helpers.NoReadyExitedNormally))
 		})
 	})
 })

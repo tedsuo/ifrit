@@ -1,4 +1,4 @@
-package ifrit_test
+package group_test
 
 import (
 	"os"
@@ -6,15 +6,17 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/tedsuo/ifrit"
+	"github.com/tedsuo/ifrit/group"
+	"github.com/tedsuo/ifrit/test_helpers"
 )
 
 var _ = Describe("ProcessGroup", func() {
-	var rGroup ifrit.RunGroup
+	var rGroup group.RunGroup
 
 	BeforeEach(func() {
-		rGroup = ifrit.RunGroup{
-			"ping1": make(PingChan),
-			"ping2": make(PingChan),
+		rGroup = group.RunGroup{
+			"ping1": make(test_helpers.PingChan),
+			"ping2": make(test_helpers.PingChan),
 		}
 	})
 
@@ -35,7 +37,7 @@ var _ = Describe("ProcessGroup", func() {
 				errMsg := err.Error()
 				Ω(errMsg).Should(ContainSubstring("ping1"))
 				Ω(errMsg).Should(ContainSubstring("ping2"))
-				Ω(errMsg).Should(ContainSubstring(PingerExitedFromSignal.Error()))
+				Ω(errMsg).Should(ContainSubstring(test_helpers.PingerExitedFromSignal.Error()))
 			})
 		})
 	})

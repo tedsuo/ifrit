@@ -1,15 +1,21 @@
-package ifrit
+package group
 
 import (
 	"errors"
 	"fmt"
 	"os"
+	"github.com/tedsuo/ifrit"
 )
 
-func envokeGroup(rGroup RunGroup) Process {
+type ProcessGroup interface{
+	ifrit.Process
+	//Exit() MemberChan
+}
+
+func EnvokeGroup(rGroup RunGroup) ProcessGroup {
 	p := processGroup{}
 	count := len(rGroup)
-	mChan := make(memberChan, count)
+	mChan := make(MemberChan, count)
 
 	for name, runner := range rGroup {
 		go mChan.envokeMember(name, runner)
@@ -21,18 +27,18 @@ func envokeGroup(rGroup RunGroup) Process {
 	return p
 }
 
-type member struct {
+type Member struct {
 	name    string
-	process Process
+	process ifrit.Process
 }
 
-type memberChan chan member
+type MemberChan chan Member
 
-func (mChan memberChan) envokeMember(name string, runner Runner) {
-	mChan <- member{name: name, process: Envoke(runner)}
+func (mChan MemberChan) envokeMember(name string, runner ifrit.Runner) {
+	mChan <- Member{name: name, process: ifrit.Envoke(runner)}
 }
 
-type processGroup map[string]Process
+type processGroup map[string]ifrit.Process
 
 func (group processGroup) Signal(signal os.Signal) {
 	for _, p := range group {
