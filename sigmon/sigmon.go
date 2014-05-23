@@ -8,6 +8,8 @@ import (
 	"github.com/tedsuo/ifrit"
 )
 
+const SIGNAL_BUFFER_SIZE = 1024
+
 type sigmon struct {
 	signals          []os.Signal
 	monitoredProcess ifrit.Process
@@ -22,7 +24,7 @@ func New(p ifrit.Process, signals ...os.Signal) ifrit.Runner {
 }
 
 func (s *sigmon) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
-	osSignals := make(chan os.Signal, len(s.signals))
+	osSignals := make(chan os.Signal, SIGNAL_BUFFER_SIZE)
 	signal.Notify(osSignals, s.signals...)
 
 	close(ready)
