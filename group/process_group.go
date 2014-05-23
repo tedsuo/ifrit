@@ -13,45 +13,44 @@ type ProcessGroup interface{
 }
 
 func EnvokeGroup(rGroup RunGroup) ProcessGroup {
-	p := processGroup{}
 	count := len(rGroup)
+	p := make(processGroup,count)
 	mChan := make(MemberChan, count)
 
 	for name, runner := range rGroup {
 		go mChan.envokeMember(name, runner)
 	}
 	for i := 0; i < count; i++ {
-		m := <-mChan
-		p[m.name] = m.process
+		p[i] = <-mChan
 	}
 	return p
 }
 
 type Member struct {
-	name    string
-	process ifrit.Process
+	Name    string
+	Process ifrit.Process
 }
 
 type MemberChan chan Member
 
 func (mChan MemberChan) envokeMember(name string, runner ifrit.Runner) {
-	mChan <- Member{name: name, process: ifrit.Envoke(runner)}
+	mChan <- Member{Name: name, Process: ifrit.Envoke(runner)}
 }
 
-type processGroup map[string]ifrit.Process
+type processGroup []Member
 
 func (group processGroup) Signal(signal os.Signal) {
-	for _, p := range group {
-		p.Signal(signal)
+	for _, m := range group {
+		m.Process.Signal(signal)
 	}
 }
 
 func (group processGroup) waitForGroup() error {
 	var errMsg string
-	for name, p := range group {
-		err := <-p.Wait()
+	for _, m := range group {
+		err := <-m.Process.Wait()
 		if err != nil {
-			errMsg += fmt.Sprintf("%s: %s/n", name, err)
+			errMsg += fmt.Sprintf("%s: %s/n", m.Name, err)
 		}
 	}
 
