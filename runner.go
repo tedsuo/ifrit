@@ -2,6 +2,10 @@ package ifrit
 
 import "os"
 
+type Loader interface {
+	Load() (Runner, bool)
+}
+
 type Runner interface {
 	Run(signals <-chan os.Signal, ready chan<- struct{}) error
 }
