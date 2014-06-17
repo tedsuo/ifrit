@@ -1,0 +1,154 @@
+package grouper
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/tedsuo/ifrit"
+)
+
+type Loader interface {
+	Load(error) (ifrit.Runner, bool)
+}
+
+type Members []Member
+
+type Member struct {
+	Name    string
+	Runner  ifrit.Runner
+	Restart Restart
+}
+
+func (members Members) Load(err error) (ifrit.Runner, bool) {
+	return members, true
+}
+
+func (members Members) Run(sig <-chan os.Signal, ready chan<- struct{}) error {
+	signaledToStop := false
+
+	group := make(pGroup, len(members))
+
+	startedChan := make(pMemberChan, len(members))
+	startedChan.envokeGroup(members, group)
+
+	exitedChan := make(exitedChannel, len(group))
+	exitedChan.waitForGroup(group)
+
+	desiredCount := len(group)
+
+	if ready != nil {
+		close(ready)
+	}
+
+	for {
+		if desiredCount == 0 {
+			return nil
+		}
+
+		select {
+
+		case signal := <-sig:
+			signaledToStop = true
+			group.Signal(signal)
+
+		case pm := <-startedChan:
+			group[pm.Process] = pm
+			go exitedChan.waitForProcess(pm.Process)
+
+		case e := <-exitedChan:
+			if signaledToStop {
+				delete(group, e.Process)
+				desiredCount--
+				continue
+			}
+
+			member, ok := group[e.Process]
+			if !ok {
+				panic(fmt.Errorf("Exit for missing process! \nExit: \nErr:%s \n Process: %#v", e.Process))
+			}
+
+			restart := member.Restart
+
+			if restart.Signal != Continue {
+				group.Signal(restart.Signal)
+			}
+
+			if !restart.AttemptRestart {
+				if restart.Signal != Continue {
+					signaledToStop = true
+				}
+				delete(group, e.Process)
+				desiredCount--
+				continue
+			}
+
+			loader, ok := member.Runner.(Loader)
+			if !ok {
+				delete(group, e.Process)
+				desiredCount--
+				continue
+			}
+
+			nextRunner, ok := loader.Load(e.error)
+			if !ok {
+				delete(group, e.Process)
+				desiredCount--
+				continue
+			}
+
+			desiredCount++
+
+			newMember := Member{member.Name, nextRunner, member.Restart}
+			go startedChan.envokeMember(newMember)
+		}
+	}
+}
+
+type exit struct {
+	ifrit.Process
+	error
+}
+
+type exitedChannel chan exit
+
+func (exitedChan exitedChannel) waitForGroup(group pGroup) {
+	for p, _ := range group {
+		go exitedChan.waitForProcess(p)
+	}
+}
+
+func (exitedChan exitedChannel) waitForProcess(p ifrit.Process) {
+	err := <-p.Wait()
+	exitedChan <- exit{p, err}
+}
+
+type pGroup map[ifrit.Process]pMember
+
+func (group pGroup) Signal(signal os.Signal) {
+	for p, _ := range group {
+		p.Signal(signal)
+	}
+}
+
+type pMember struct {
+	ifrit.Process
+	Member
+}
+
+type pMemberChan chan pMember
+
+func (pmChan pMemberChan) envokeMember(member Member) {
+	process := ifrit.Envoke(member.Runner)
+	pmChan <- pMember{process, member}
+}
+
+func (pmChan pMemberChan) envokeGroup(group Members, p pGroup) {
+	for _, member := range group {
+		go pmChan.envokeMember(member)
+	}
+
+	for _ = range group {
+		pm := <-pmChan
+		p[pm.Process] = pm
+	}
+}
