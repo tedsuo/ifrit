@@ -24,7 +24,6 @@ func (members Members) Load(err error) (ifrit.Runner, bool) {
 }
 
 func (members Members) Run(sig <-chan os.Signal, ready chan<- struct{}) error {
-	signaledToStop := false
 
 	group := make(pGroup, len(members))
 
@@ -34,7 +33,9 @@ func (members Members) Run(sig <-chan os.Signal, ready chan<- struct{}) error {
 	exitedChan := make(exitedChannel, len(group))
 	exitedChan.waitForGroup(group)
 
+	var errToReturn error
 	desiredCount := len(group)
+	signaledToStop := false
 
 	if ready != nil {
 		close(ready)
@@ -42,7 +43,7 @@ func (members Members) Run(sig <-chan os.Signal, ready chan<- struct{}) error {
 
 	for {
 		if desiredCount == 0 {
-			return nil
+			return errToReturn
 		}
 
 		select {
@@ -56,11 +57,6 @@ func (members Members) Run(sig <-chan os.Signal, ready chan<- struct{}) error {
 			go exitedChan.waitForProcess(pm.Process)
 
 		case e := <-exitedChan:
-			if signaledToStop {
-				delete(group, e.Process)
-				desiredCount--
-				continue
-			}
 
 			member, ok := group[e.Process]
 			if !ok {
@@ -71,6 +67,16 @@ func (members Members) Run(sig <-chan os.Signal, ready chan<- struct{}) error {
 
 			if restart.Signal != Continue {
 				group.Signal(restart.Signal)
+			}
+
+			if signaledToStop {
+				delete(group, e.Process)
+				desiredCount--
+				continue
+			}
+
+			if e.error != nil {
+				errToReturn = fmt.Errorf("%s exited with error: %s", member.Name, e.error)
 			}
 
 			if !restart.AttemptRestart {
