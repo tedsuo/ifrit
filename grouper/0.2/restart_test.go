@@ -1,6 +1,8 @@
 package grouper_test
 
 import (
+	"os"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -24,16 +26,29 @@ var _ = Describe("RestartPolicies", func() {
 	})
 
 	Describe("RestartMe", func() {
-		BeforeEach(func() {
-			<-pinger1
-		})
+		Context("when the member exits", func() {
+			BeforeEach(func() {
+				<-pinger1
+			})
 
-		It("does not exit the group", func() {
-			Eventually(pGroup.Wait()).ShouldNot(Receive())
-		})
+			It("does not exit the group", func() {
+				Eventually(pGroup.Wait()).ShouldNot(Receive())
+			})
 
-		It("restarts the process", func() {
-			Eventually(pinger1).Should(Receive())
+			It("restarts the process", func() {
+				Eventually(pinger1).Should(Receive())
+			})
+
+			Context("and then the group is sent a Signal", func() {
+				BeforeEach(func() {
+					Eventually(pinger1).Should(Receive())
+					pGroup.Signal(os.Kill)
+				})
+
+				It("exits the group", func() {
+					Eventually(pGroup.Wait()).Should(Receive())
+				})
+			})
 		})
 	})
 

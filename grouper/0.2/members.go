@@ -57,12 +57,13 @@ func (members Members) Run(sig <-chan os.Signal, ready chan<- struct{}) error {
 			go exitedChan.waitForProcess(pm.Process)
 
 		case e := <-exitedChan:
-
 			member, ok := group[e.Process]
 			if !ok {
 				panic(fmt.Errorf("Exit for missing process! \nExit: \nErr:%s \n Process: %#v", e.Process))
 			}
 
+			delete(group, e.Process)
+			desiredCount--
 			restart := member.Restart
 
 			if restart.Signal != Continue {
@@ -70,8 +71,6 @@ func (members Members) Run(sig <-chan os.Signal, ready chan<- struct{}) error {
 			}
 
 			if signaledToStop {
-				delete(group, e.Process)
-				desiredCount--
 				continue
 			}
 
@@ -83,27 +82,20 @@ func (members Members) Run(sig <-chan os.Signal, ready chan<- struct{}) error {
 				if restart.Signal != Continue {
 					signaledToStop = true
 				}
-				delete(group, e.Process)
-				desiredCount--
 				continue
 			}
 
 			loader, ok := member.Runner.(Loader)
 			if !ok {
-				delete(group, e.Process)
-				desiredCount--
 				continue
 			}
 
 			nextRunner, ok := loader.Load(e.error)
 			if !ok {
-				delete(group, e.Process)
-				desiredCount--
 				continue
 			}
 
 			desiredCount++
-
 			newMember := Member{member.Name, nextRunner, member.Restart}
 			go startedChan.envokeMember(newMember)
 		}

@@ -2,7 +2,6 @@ package grouper
 
 import (
 	"os"
-	"syscall"
 	"time"
 )
 
@@ -30,10 +29,10 @@ var (
 	})
 
 	RestartGroupPolicy = RestartPolicy(func() Restart {
-		return Restart{true, syscall.SIGINT, DefaultGraceTimeout}
+		return Restart{true, os.Interrupt, DefaultGraceTimeout}
 	})
 
 	StopGroupPolicy = RestartPolicy(func() Restart {
-		return Restart{false, syscall.SIGTERM, DefaultGraceTimeout}
+		return Restart{false, os.Interrupt, DefaultGraceTimeout}
 	})
 )

@@ -2,6 +2,7 @@ package grouper_test
 
 import (
 	"os"
+	"syscall"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -34,6 +35,28 @@ var _ = Describe("Members", func() {
 			It("exits with nil", func() {
 				Eventually(pGroup.Wait()).Should(Receive(nil))
 			})
+		})
+	})
+
+	Describe("Signal propogation", func() {
+		var recorder1 *test_helpers.SignalRecoder
+		var recorder2 *test_helpers.SignalRecoder
+		var pGroup ifrit.Process
+
+		BeforeEach(func() {
+			recorder1 = test_helpers.NewSignalRecorder(syscall.SIGVTALRM)
+			recorder2 = test_helpers.NewSignalRecorder()
+			pGroup = ifrit.Envoke(grouper.Members{
+				{"recorder1", recorder1, grouper.StopGroupPolicy()},
+				{"recorder2", recorder2, grouper.StopGroupPolicy()},
+			})
+
+			pGroup.Signal(syscall.SIGVTALRM)
+			Eventually(pGroup.Wait()).Should(Receive())
+		})
+
+		It("should propogate the initial signal, and the first processes exit signal", func() {
+			Ω(recorder2.ReceivedSignals()).Should(Equal([]os.Signal{syscall.SIGVTALRM, os.Interrupt}))
 		})
 	})
 })
