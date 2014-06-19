@@ -14,16 +14,18 @@ import (
 
 var _ = Describe("Members", func() {
 	Describe("ifrit.Envoke()", func() {
-		var pinger1 test_helpers.PingChan
-		var pinger2 test_helpers.PingChan
 		var pGroup ifrit.Process
 
 		BeforeEach(func() {
-			pinger1 = make(test_helpers.PingChan)
-			pinger2 = make(test_helpers.PingChan)
+			pinger1 := make(test_helpers.PingChan)
+			pinger2 := make(test_helpers.PingChan)
+			pinger3 := make(test_helpers.PingChan)
+			pinger4 := make(test_helpers.PingChan)
 			pGroup = ifrit.Envoke(grouper.Members{
 				{"ping1", pinger1, grouper.RestartMePolicy()},
-				{"ping2", pinger2, grouper.StopGroupPolicy()},
+				{"ping2", pinger2, grouper.StopMePolicy()},
+				{"ping3", pinger3, grouper.RestartGroupPolicy()},
+				{"ping4", pinger4, grouper.StopGroupPolicy()},
 			})
 		})
 
