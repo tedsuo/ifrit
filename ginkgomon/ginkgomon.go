@@ -34,7 +34,12 @@ func (r *Runner) Run(sigChan <-chan os.Signal, ready chan<- struct{}) error {
 	Ω(err).ShouldNot(HaveOccurred())
 
 	if r.StartCheck != "" {
-		Eventually(session, r.StartCheckTimeout).Should(gbytes.Say(r.StartCheck))
+		timeout := r.StartCheckTimeout
+		if timeout == 0 {
+			timeout = time.Second
+		}
+
+		Eventually(session, timeout).Should(gbytes.Say(r.StartCheck))
 	}
 
 	close(ready)
