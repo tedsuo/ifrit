@@ -19,6 +19,7 @@ type Runner struct {
 	StartCheck        string
 	StartCheckTimeout time.Duration
 	Args              []string
+	Cleanup           func()
 }
 
 func (r *Runner) Run(sigChan <-chan os.Signal, ready chan<- struct{}) error {
@@ -48,14 +49,18 @@ func (r *Runner) Run(sigChan <-chan os.Signal, ready chan<- struct{}) error {
 
 	for {
 		select {
-
 		case signal = <-sigChan:
 			session.Signal(signal)
 
 		case <-session.Exited:
+			if r.Cleanup != nil {
+				r.Cleanup()
+			}
+
 			if session.ExitCode() == 0 {
 				return nil
 			}
+
 			return fmt.Errorf("exit status %d", session.ExitCode())
 		}
 	}
