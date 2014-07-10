@@ -2,6 +2,7 @@ package ginkgomon
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"time"
@@ -23,13 +24,21 @@ type Runner struct {
 }
 
 func (r *Runner) Run(sigChan <-chan os.Signal, ready chan<- struct{}) error {
+	allOutput := gbytes.NewBuffer()
+
 	session, err := gexec.Start(
 		exec.Command(
 			r.BinPath,
 			r.Args...,
 		),
-		gexec.NewPrefixedWriter(fmt.Sprintf("\x1b[32m[o]\x1b[%s[%s]\x1b[0m ", r.AnsiColorCode, r.Name), ginkgo.GinkgoWriter),
-		gexec.NewPrefixedWriter(fmt.Sprintf("\x1b[91m[e]\x1b[%s[%s]\x1b[0m ", r.AnsiColorCode, r.Name), ginkgo.GinkgoWriter),
+		gexec.NewPrefixedWriter(
+			fmt.Sprintf("\x1b[32m[o]\x1b[%s[%s]\x1b[0m ", r.AnsiColorCode, r.Name),
+			io.MultiWriter(allOutput, ginkgo.GinkgoWriter),
+		),
+		gexec.NewPrefixedWriter(
+			fmt.Sprintf("\x1b[91m[e]\x1b[%s[%s]\x1b[0m ", r.AnsiColorCode, r.Name),
+			io.MultiWriter(allOutput, ginkgo.GinkgoWriter),
+		),
 	)
 
 	Ω(err).ShouldNot(HaveOccurred())
@@ -40,7 +49,7 @@ func (r *Runner) Run(sigChan <-chan os.Signal, ready chan<- struct{}) error {
 			timeout = time.Second
 		}
 
-		Eventually(session, timeout).Should(gbytes.Say(r.StartCheck))
+		Eventually(allOutput, timeout).Should(gbytes.Say(r.StartCheck))
 	}
 
 	close(ready)
