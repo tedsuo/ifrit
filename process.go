@@ -1,7 +1,6 @@
 package ifrit
 
 import (
-	"fmt"
 	"os"
 	"sync"
 )
@@ -42,13 +41,6 @@ type process struct {
 }
 
 func (p *process) run() {
-	defer func() {
-		msg := recover()
-		if msg != nil {
-			p.exitStatusChan <- fmt.Errorf("%s", msg)
-		}
-	}()
-
 	p.exitStatusChan <- p.runner.Run(p.sig, p.ready)
 }
 
