@@ -24,6 +24,8 @@ type Runner struct {
 }
 
 func (r *Runner) Run(sigChan <-chan os.Signal, ready chan<- struct{}) error {
+	defer ginkgo.GinkgoRecover()
+
 	allOutput := gbytes.NewBuffer()
 
 	session, err := gexec.Start(
