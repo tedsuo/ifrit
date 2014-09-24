@@ -8,7 +8,9 @@ import (
 
 func New(proxySignals <-chan os.Signal, runner ifrit.Runner) ifrit.Runner {
 	return ifrit.RunFunc(func(signals <-chan os.Signal, ready chan<- struct{}) error {
-		process := ifrit.Envoke(runner)
+		process := ifrit.Background(runner)
+		<-process.Ready()
+		close(ready)
 		go forwardSignals(proxySignals, process)
 		go forwardSignals(signals, process)
 		return <-process.Wait()
