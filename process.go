@@ -8,7 +8,7 @@ type Process interface {
 	Signal(os.Signal)
 }
 
-func Envoke(r Runner) Process {
+func Invoke(r Runner) Process {
 	p := newProcess(r)
 	go p.run()
 
@@ -18,6 +18,10 @@ func Envoke(r Runner) Process {
 	}
 
 	return p
+}
+
+func Envoke(r Runner) Process {
+	return Invoke(r)
 }
 
 func Background(r Runner) Process {
