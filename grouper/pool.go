@@ -56,7 +56,7 @@ func (p *Pool) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 			}
 
 			process := ifrit.Background(newMember)
-			processes.Add(newMember, process)
+			processes.Add(newMember.Name, process)
 			if processes.Length() == p.poolSize {
 				insertEvents = nil
 			}
@@ -73,7 +73,7 @@ func (p *Pool) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 			}
 
 		case exitEvent := <-exitEvents:
-			processes.Remove(exitEvent.Member)
+			processes.Remove(exitEvent.Member.Name)
 			p.client.broadcastExit(exitEvent)
 
 			if !processes.Signaled() && p.signal != nil {
@@ -122,13 +122,13 @@ func waitForEvents(member Member, process ifrit.Process, entrance entranceEventC
 }
 
 type processSet struct {
-	processes map[Member]ifrit.Process
+	processes map[string]ifrit.Process
 	shutdown  os.Signal
 }
 
 func newProcessSet() *processSet {
 	return &processSet{
-		processes: map[Member]ifrit.Process{},
+		processes: map[string]ifrit.Process{},
 	}
 }
 
@@ -151,14 +151,14 @@ func (g *processSet) Complete() bool {
 	return len(g.processes) == 0 && g.shutdown != nil
 }
 
-func (g *processSet) Add(member Member, process ifrit.Process) {
-	_, ok := g.processes[member]
+func (g *processSet) Add(name string, process ifrit.Process) {
+	_, ok := g.processes[name]
 	if ok {
-		panic(fmt.Errorf("member inserted twice: %#v", member))
+		panic(fmt.Errorf("member inserted twice: %#v", name))
 	}
-	g.processes[member] = process
+	g.processes[name] = process
 }
 
-func (g *processSet) Remove(member Member) {
-	delete(g.processes, member)
+func (g *processSet) Remove(name string) {
+	delete(g.processes, name)
 }
