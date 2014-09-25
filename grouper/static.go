@@ -67,7 +67,7 @@ func serialInit(members Members, client PoolClient) {
 
 		exit := <-exitEvents
 		if exit.Err != nil {
-			break
+			return
 		}
 	}
 }
