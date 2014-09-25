@@ -167,30 +167,27 @@ var _ = Describe("Parallel Group", func() {
 
 		Describe("Failed start", func() {
 			BeforeEach(func() {
-				signal1 := childRunner1.WaitForCall()
-				childRunner1.TriggerReady()
-
 				childRunner2.TriggerExit(errors.New("Fail"))
 
+				signal1 := childRunner1.WaitForCall()
 				Eventually(signal1).Should(Receive(Equal(os.Interrupt)))
 				childRunner1.TriggerExit(nil)
 
-				signal3 := childRunner1.WaitForCall()
-				childRunner3.TriggerReady()
+				signal3 := childRunner3.WaitForCall()
 				Eventually(signal3).Should(Receive(Equal(os.Interrupt)))
 				childRunner3.TriggerExit(nil)
 
 				Eventually(started).Should(BeClosed())
 			})
 
-			PIt("exits after starting all processes", func() {
+			It("exits after starting all processes", func() {
 				var err error
 
 				Eventually(groupProcess.Wait()).Should(Receive(&err))
 				Ω(err).Should(Equal(grouper.ErrorTrace{
 					{grouper.Member{"child2", childRunner2}, errors.New("Fail")},
 					{grouper.Member{"child1", childRunner1}, nil},
-					{grouper.Member{"child3", childRunner1}, nil},
+					{grouper.Member{"child3", childRunner3}, nil},
 				}))
 			})
 		})
