@@ -9,8 +9,7 @@ type Process interface {
 }
 
 func Invoke(r Runner) Process {
-	p := newProcess(r)
-	go p.run()
+	p := Background(r)
 
 	select {
 	case <-p.Ready():
