@@ -67,6 +67,8 @@ var _ = Describe("Parallel Group", func() {
 			Eventually(childRunner2.RunCallCount).Should(Equal(1))
 			Eventually(childRunner3.RunCallCount).Should(Equal(1))
 
+			Consistently(started).ShouldNot(BeClosed())
+
 			childRunner1.TriggerReady()
 			childRunner2.TriggerReady()
 			childRunner3.TriggerReady()

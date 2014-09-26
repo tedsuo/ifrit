@@ -28,6 +28,10 @@ func parallelInit(members Members, client PoolClient) {
 			return
 		}
 	}
+	client.Close()
+	for _ = range client.NewEntranceListener() {
+		// wait for all members to be ready
+	}
 }
 
 func NewOrdered(signal os.Signal, members []Member) StaticGroup {
