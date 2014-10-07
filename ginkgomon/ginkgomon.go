@@ -45,6 +45,14 @@ func New(config Config) *Runner {
 	}
 }
 
+func (r *Runner) ExitCode() int {
+	if r.sessionReady == nil {
+		panic("ginkgomon improperly created without using New")
+	}
+	<-r.sessionReady
+	return r.session.ExitCode()
+}
+
 func (r *Runner) Buffer() *gbytes.Buffer {
 	if r.sessionReady == nil {
 		panic("ginkgomon improperly created without using New")
