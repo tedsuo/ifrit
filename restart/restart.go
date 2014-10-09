@@ -27,27 +27,36 @@ type Restarter struct {
 	Load   func(runner ifrit.Runner, err error) ifrit.Runner
 }
 
-func (r *Restarter) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
+func (r Restarter) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	if r.Load == nil {
 		return ErrNoLoadCallback
 	}
 
-	process := ifrit.Invoke(r.Runner)
+	process := ifrit.Background(r.Runner)
+	processReady := process.Ready()
 	exit := process.Wait()
 	signaled := false
-	close(ready)
 
 	for {
 		select {
 		case signal := <-signals:
 			process.Signal(signal)
 			signaled = true
+
+		case <-processReady:
+			close(ready)
+			processReady = nil
+
 		case err := <-exit:
-			r.Runner = r.Load(r.Runner, err)
-			if signaled || r.Runner == nil {
+			if signaled {
 				return err
 			}
-			process = ifrit.Invoke(r.Runner)
+
+			r.Runner = r.Load(r.Runner, err)
+			if r.Runner == nil {
+				return err
+			}
+			process = ifrit.Background(r.Runner)
 			exit = process.Wait()
 		}
 	}

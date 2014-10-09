@@ -2,6 +2,7 @@ package restart_test
 
 import (
 	"os"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/tedsuo/ifrit"
@@ -10,18 +11,16 @@ import (
 )
 
 var _ = Describe("Restart", func() {
-	var loadRunner *fake_runner.TestRunner
 	var testRunner *fake_runner.TestRunner
-	var restarter *restart.Restarter
+	var restarter restart.Restarter
 	var process ifrit.Process
 
 	BeforeEach(func() {
 		testRunner = fake_runner.NewTestRunner()
-		loadRunner = fake_runner.NewTestRunner()
-		restarter = &restart.Restarter{
+		restarter = restart.Restarter{
 			Runner: testRunner,
 			Load: func(runner ifrit.Runner, err error) ifrit.Runner {
-				return loadRunner
+				return nil
 			},
 		}
 	})
@@ -31,9 +30,8 @@ var _ = Describe("Restart", func() {
 	})
 
 	AfterEach(func() {
-		testRunner.EnsureExit()
-		loadRunner.EnsureExit()
 		process.Signal(os.Kill)
+		testRunner.EnsureExit()
 		Eventually(process.Wait()).Should(Receive())
 	})
 
@@ -49,9 +47,30 @@ var _ = Describe("Restart", func() {
 	Describe("Load", func() {
 
 		Context("when load returns a runner", func() {
+			var loadedRunner *fake_runner.TestRunner
+			var loadedRunners chan *fake_runner.TestRunner
+
+			BeforeEach(func() {
+				loadedRunners = make(chan *fake_runner.TestRunner, 1)
+				restarter.Load = func(runner ifrit.Runner, err error) ifrit.Runner {
+					select {
+					case runner := <-loadedRunners:
+						return runner
+					default:
+						return nil
+					}
+				}
+				loadedRunner = fake_runner.NewTestRunner()
+				loadedRunners <- loadedRunner
+			})
+
+			AfterEach(func() {
+				loadedRunner.EnsureExit()
+			})
+
 			It("executes the returned Runner", func() {
 				testRunner.TriggerExit(nil)
-				loadRunner.TriggerExit(nil)
+				loadedRunner.TriggerExit(nil)
 			})
 		})
 
