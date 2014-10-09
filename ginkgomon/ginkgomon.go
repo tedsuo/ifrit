@@ -85,15 +85,14 @@ func (r *Runner) Run(sigChan <-chan os.Signal, ready chan<- struct{}) error {
 		close(r.sessionReady)
 	}
 
+	startCheckDuration := r.StartCheckTimeout
+	if startCheckDuration == 0 {
+		startCheckDuration = 5 * time.Second
+	}
+
 	var startCheckTimeout <-chan time.Time
-
 	if r.StartCheck != "" {
-		timeout := r.StartCheckTimeout
-		if timeout == 0 {
-			timeout = 5 * time.Second
-		}
-
-		startCheckTimeout = time.After(timeout)
+		startCheckTimeout = time.After(startCheckDuration)
 	}
 
 	detectStartCheck := allOutput.Detect(r.StartCheck)
@@ -107,7 +106,16 @@ func (r *Runner) Run(sigChan <-chan os.Signal, ready chan<- struct{}) error {
 			close(ready)
 
 		case <-startCheckTimeout:
-			ginkgo.Fail("did not see " + r.StartCheck + " in output")
+			// clean up hanging process
+			session.Kill().Wait()
+
+			// fail to start
+			return fmt.Errorf(
+				"did not see %s in command's output within %s. full output:\n\n%s",
+				r.StartCheck,
+				startCheckDuration,
+				string(allOutput.Contents()),
+			)
 
 		case signal := <-sigChan:
 			session.Signal(signal)
