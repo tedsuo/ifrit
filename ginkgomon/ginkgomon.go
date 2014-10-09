@@ -80,27 +80,36 @@ func (r *Runner) Run(sigChan <-chan os.Signal, ready chan<- struct{}) error {
 
 	Ω(err).ShouldNot(HaveOccurred())
 
+	r.session = session
+	if r.sessionReady != nil {
+		close(r.sessionReady)
+	}
+
+	var startCheckTimeout <-chan time.Time
+
 	if r.StartCheck != "" {
 		timeout := r.StartCheckTimeout
 		if timeout == 0 {
 			timeout = 5 * time.Second
 		}
 
-		Eventually(allOutput, timeout).Should(gbytes.Say(r.StartCheck))
+		startCheckTimeout = time.After(timeout)
 	}
 
-	r.session = session
-	if r.sessionReady != nil {
-		close(r.sessionReady)
-	}
-	close(ready)
-
-	var signal os.Signal
+	detectStartCheck := allOutput.Detect(r.StartCheck)
 
 	for {
 		select {
+		case <-detectStartCheck: // works even with empty string
+			allOutput.CancelDetects()
+			startCheckTimeout = nil
+			detectStartCheck = nil
+			close(ready)
 
-		case signal = <-sigChan:
+		case <-startCheckTimeout:
+			ginkgo.Fail("did not see " + r.StartCheck + " in output")
+
+		case signal := <-sigChan:
 			session.Signal(signal)
 
 		case <-session.Exited:
