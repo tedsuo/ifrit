@@ -29,3 +29,7 @@ func (b slidingBuffer) Range(callback func(item interface{})) {
 		elem = elem.Next()
 	}
 }
+
+func (b slidingBuffer) Length() int {
+	return b.buffer.Len()
+}
