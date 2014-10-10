@@ -2,6 +2,7 @@ package ginkgomon
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/onsi/ginkgo"
 	"github.com/tedsuo/ifrit"
@@ -17,4 +18,14 @@ func Invoke(runner ifrit.Runner) ifrit.Process {
 	}
 
 	return process
+}
+
+func Interrupt(process ifrit.Process) {
+	process.Signal(os.Kill)
+	Eventually(process.Wait()).Should(Receive())
+}
+
+func Kill(process ifrit.Process) {
+	process.Signal(os.Kill)
+	Eventually(process.Wait()).Should(Receive())
 }
