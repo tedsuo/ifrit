@@ -1,5 +1,5 @@
 /*
-The restart package implements common restart stragies for ifrit Runners.
+The restart package implements common restart strategies for ifrit processes.
 
 The API is still experimental and subject to change.
 */
