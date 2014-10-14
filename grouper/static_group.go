@@ -14,12 +14,12 @@ type StaticGroup interface {
 }
 
 type staticGroup struct {
-	pool *Pool
+	pool DynamicGroup
 	Members
-	Init func(members Members, client PoolClient)
+	Init func(members Members, client DynamicClient)
 }
 
-func newStatic(signal os.Signal, members []Member, init func(members Members, client PoolClient)) StaticGroup {
+func newStatic(signal os.Signal, members []Member, init func(members Members, client DynamicClient)) StaticGroup {
 	return staticGroup{
 		pool:    NewPool(signal, len(members), len(members)),
 		Members: members,
@@ -45,7 +45,7 @@ func (g staticGroup) Run(signals <-chan os.Signal, ready chan<- struct{}) error 
 	}()
 
 	errorTrace := NewErrorTrace(bufferSize)
-	errorTrace = errorTrace.TraceExitEvents(client.NewExitListener())
+	errorTrace = errorTrace.TraceExitEvents(client.ExitListener())
 	return errorTrace.ToError()
 }
 

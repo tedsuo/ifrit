@@ -6,8 +6,8 @@ func NewParallel(signal os.Signal, members []Member) StaticGroup {
 	return newStatic(signal, members, parallelInit)
 }
 
-func parallelInit(members Members, client PoolClient) {
-	insert := client.Insert()
+func parallelInit(members Members, client DynamicClient) {
+	insert := client.Inserter()
 	closed := client.CloseNotifier()
 
 	for _, member := range members {
@@ -18,7 +18,7 @@ func parallelInit(members Members, client PoolClient) {
 		}
 	}
 	client.Close()
-	for _ = range client.NewEntranceListener() {
+	for _ = range client.EntranceListener() {
 		// wait for all members to be ready
 	}
 }
@@ -27,9 +27,9 @@ func NewOrdered(signal os.Signal, members []Member) StaticGroup {
 	return newStatic(signal, members, orderedInit)
 }
 
-func orderedInit(members Members, client PoolClient) {
-	entranceEvents := client.NewEntranceListener()
-	insert := client.Insert()
+func orderedInit(members Members, client DynamicClient) {
+	entranceEvents := client.EntranceListener()
+	insert := client.Inserter()
 	closed := client.CloseNotifier()
 
 	for _, member := range members {
@@ -46,9 +46,9 @@ func NewSerial(members []Member) StaticGroup {
 	return newStatic(nil, members, serialInit)
 }
 
-func serialInit(members Members, client PoolClient) {
-	exitEvents := client.NewExitListener()
-	insert := client.Insert()
+func serialInit(members Members, client DynamicClient) {
+	exitEvents := client.ExitListener()
+	insert := client.Inserter()
 	closed := client.CloseNotifier()
 
 	for _, member := range members {

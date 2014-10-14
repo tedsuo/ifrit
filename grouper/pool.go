@@ -7,6 +7,11 @@ import (
 	"github.com/tedsuo/ifrit"
 )
 
+type DynamicGroup interface {
+	ifrit.Runner
+	Client() DynamicClient
+}
+
 type Pool struct {
 	client   poolClient
 	signal   os.Signal
@@ -21,7 +26,7 @@ func NewPool(signal os.Signal, poolSize int, eventBufferSize int) *Pool {
 	}
 }
 
-func (p *Pool) Client() PoolClient {
+func (p *Pool) Client() DynamicClient {
 	return p.client
 }
 

@@ -12,7 +12,7 @@ import (
 
 var _ = Describe("Pool", func() {
 	var (
-		client      grouper.PoolClient
+		client      grouper.DynamicClient
 		pool        *grouper.Pool
 		poolProcess ifrit.Process
 
@@ -44,7 +44,7 @@ var _ = Describe("Pool", func() {
 			client = pool.Client()
 			poolProcess = ifrit.Envoke(pool)
 
-			insert := client.Insert()
+			insert := client.Inserter()
 			Eventually(insert).Should(BeSent(member1))
 			Eventually(insert).Should(BeSent(member2))
 			Eventually(insert).Should(BeSent(member3))
@@ -59,8 +59,8 @@ var _ = Describe("Pool", func() {
 			entrance1, entrance2, entrance3 := grouper.EntranceEvent{}, grouper.EntranceEvent{}, grouper.EntranceEvent{}
 			exit1, exit2, exit3 := grouper.ExitEvent{}, grouper.ExitEvent{}, grouper.ExitEvent{}
 
-			entrances := client.NewEntranceListener()
-			exits := client.NewExitListener()
+			entrances := client.EntranceListener()
+			exits := client.ExitListener()
 
 			childRunner2.TriggerReady()
 			Eventually(entrances).Should(Receive(&entrance2))
@@ -96,7 +96,7 @@ var _ = Describe("Pool", func() {
 			childRunner3.TriggerReady()
 			time.Sleep(time.Millisecond)
 
-			entrances := client.NewEntranceListener()
+			entrances := client.EntranceListener()
 
 			Eventually(entrances).Should(Receive(&entrance2))
 			Ω(entrance2.Member).Should(Equal(member2))
@@ -111,7 +111,7 @@ var _ = Describe("Pool", func() {
 			childRunner3.TriggerExit(nil)
 			time.Sleep(time.Millisecond)
 
-			exits := client.NewExitListener()
+			exits := client.ExitListener()
 			Eventually(exits).Should(Receive(&exit2))
 			Ω(exit2.Member).Should(Equal(member2))
 

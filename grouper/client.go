@@ -7,14 +7,15 @@ import (
 )
 
 type StaticClient interface {
-	NewEntranceListener() <-chan EntranceEvent
-	NewExitListener() <-chan ExitEvent
+	EntranceListener() <-chan EntranceEvent
+	ExitListener() <-chan ExitEvent
+	CloseNotifier() <-chan struct{}
 }
 
-type PoolClient interface {
-	NewEntranceListener() <-chan EntranceEvent
-	NewExitListener() <-chan ExitEvent
-	Insert() chan<- Member
+type DynamicClient interface {
+	EntranceListener() <-chan EntranceEvent
+	ExitListener() <-chan ExitEvent
+	Inserter() chan<- Member
 	CloseNotifier() <-chan struct{}
 	Close()
 }
@@ -41,7 +42,7 @@ func (c poolClient) Get(Member) (ifrit.Process, bool) {
 	return nil, false
 }
 
-func (c poolClient) Insert() chan<- Member {
+func (c poolClient) Inserter() chan<- Member {
 	return c.insertChannel
 }
 
@@ -49,7 +50,7 @@ func (c poolClient) insertEventListener() <-chan Member {
 	return c.insertChannel
 }
 
-func (c poolClient) NewEntranceListener() <-chan EntranceEvent {
+func (c poolClient) EntranceListener() <-chan EntranceEvent {
 	return c.entranceBroadcaster.Attach()
 }
 
@@ -61,7 +62,7 @@ func (c poolClient) closeEntranceBroadcaster() {
 	c.entranceBroadcaster.Close()
 }
 
-func (c poolClient) NewExitListener() <-chan ExitEvent {
+func (c poolClient) ExitListener() <-chan ExitEvent {
 	return c.exitBroadcaster.Attach()
 }
 
