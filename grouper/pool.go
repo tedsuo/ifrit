@@ -12,25 +12,25 @@ type DynamicGroup interface {
 	Client() DynamicClient
 }
 
-type Pool struct {
-	client   poolClient
+type dynamicGroup struct {
+	client   dynamicClient
 	signal   os.Signal
 	poolSize int
 }
 
-func NewPool(signal os.Signal, poolSize int, eventBufferSize int) *Pool {
-	return &Pool{
-		client:   newPoolClient(eventBufferSize),
+func NewDynamic(signal os.Signal, poolSize int, eventBufferSize int) DynamicGroup {
+	return &dynamicGroup{
+		client:   newClient(eventBufferSize),
 		poolSize: poolSize,
 		signal:   signal,
 	}
 }
 
-func (p *Pool) Client() DynamicClient {
+func (p *dynamicGroup) Client() DynamicClient {
 	return p.client
 }
 
-func (p *Pool) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
+func (p *dynamicGroup) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	processes := newProcessSet()
 	insertEvents := p.client.insertEventListener()
 	closeNotifier := p.client.CloseNotifier()
@@ -107,29 +107,29 @@ func waitForEvents(
 	entrance entranceEventChannel,
 	exit exitEventChannel,
 ) {
-		select {
-		case <-process.Ready():
-			entrance <- EntranceEvent{
-				Member:  member,
-				Process: process,
-			}
-
-			exit <- ExitEvent{
-				Member: member,
-				Err:    <-process.Wait(),
-			}
-
-		case err := <-process.Wait():
-			entrance <- EntranceEvent{
-				Member:  member,
-				Process: process,
-			}
-
-			exit <- ExitEvent{
-				Member: member,
-				Err:    err,
-			}
+	select {
+	case <-process.Ready():
+		entrance <- EntranceEvent{
+			Member:  member,
+			Process: process,
 		}
+
+		exit <- ExitEvent{
+			Member: member,
+			Err:    <-process.Wait(),
+		}
+
+	case err := <-process.Wait():
+		entrance <- EntranceEvent{
+			Member:  member,
+			Process: process,
+		}
+
+		exit <- ExitEvent{
+			Member: member,
+			Err:    err,
+		}
+	}
 }
 
 type processSet struct {

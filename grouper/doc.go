@@ -5,26 +5,26 @@ as ifrit runners, startup and shutdown of your entire application can now
 be controlled.
 
 Grouper provides four strategies for system startup: three StaticGroup
-strategies, and one DynamicGroup strategy.  Each StaticGroup strategy takes a
+strategies, and one DynamicGroup.  Each static group strategy takes a
 list of members, and starts the members in the following manner:
 
   - Parallel: all processes are started simultaneously.
   - Ordered:  the next process is started when the previous is ready.
   - Serial:   the next process is started when the previous exits.
 
-The single DynamicGroup strategy offered is called a Pool.  A Pool allows up to
-N processes to be run concurrently. The dynamic group runs indefinitely until it is
-closed or signaled.
+The DynamicGroup allows up to N processes to be run concurrently. The dynamic
+group runs indefinitely until it is closed or signaled. A dynamic group has the
+followinf properties:
 
-  - A DynamicGroup allows Members to be inserted until it is closed.
-  - A DynanicGroup can be manually closed via it's client.
-  - A DynamicGroup is automatically closed once it is signaled.
-  - Once a DynamicGroup is closed, it acts like a StaticGroup.
+  - A dynamic group allows Members to be inserted until it is closed.
+  - A dynamic group can be manually closed via it's client.
+  - A dynamic group is automatically closed once it is signaled.
+  - Once a dynamic group is closed, it acts like a static group.
 
-All strategies take a termination signal, have the same signaling and shutdown
-semantics:
+Groups can optionally be configured with a termination signal, and all groups
+have the same signaling and shutdown properties:
 
-  - The group propogates all signals to all running members.
+  - The group propogates all received signals to all running members.
   - If a member exits before being signaled, the group propogates the
     termination signal.  A nil termination signal is not propogated.
 

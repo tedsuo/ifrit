@@ -13,25 +13,25 @@ which records events and will drop events once the buffer is filled.
 */
 type StaticClient interface {
 
-/*
-EntranceListener provides a new buffered channel of entrance events, which are
-emited every time an inserted process is ready. To help prevent race conditions,
-every new channel is populated with previously emited events, up to it's buffer
-size.
-*/
+	/*
+	   EntranceListener provides a new buffered channel of entrance events, which are
+	   emited every time an inserted process is ready. To help prevent race conditions,
+	   every new channel is populated with previously emited events, up to it's buffer
+	   size.
+	*/
 	EntranceListener() <-chan EntranceEvent
 
-/*
-ExitListener provides a new buffered channel of exit events, which are emited
-every time an inserted process is ready. To help prevent race conditions, every
-new channel is populated with previously emited events, up to it's buffer size.
-*/
+	/*
+	   ExitListener provides a new buffered channel of exit events, which are emited
+	   every time an inserted process is ready. To help prevent race conditions, every
+	   new channel is populated with previously emited events, up to it's buffer size.
+	*/
 	ExitListener() <-chan ExitEvent
 
-/*
-CloseNotifier provides a new unbuffered channel, which will emit a single event
-once the group has been closed.
-*/
+	/*
+	   CloseNotifier provides a new unbuffered channel, which will emit a single event
+	   once the group has been closed.
+	*/
 	CloseNotifier() <-chan struct{}
 }
 
@@ -44,30 +44,30 @@ group, which causes it to become a static group.
 */
 type DynamicClient interface {
 
-/*
-Inserter provides an unbuffered channel for adding members to a group. When the
-group becomes full, the insert channel blocks until a running process exits.
-Once the group is closed, insert channels block forever.
-*/
+	/*
+	   Inserter provides an unbuffered channel for adding members to a group. When the
+	   group becomes full, the insert channel blocks until a running process exits.
+	   Once the group is closed, insert channels block forever.
+	*/
 	Inserter() chan<- Member
 
-/*
-Close causes a dynamic group to become a static group. This means that no new
-members may be inserted, and the group will exit once all members have
-completed.
-*/
+	/*
+	   Close causes a dynamic group to become a static group. This means that no new
+	   members may be inserted, and the group will exit once all members have
+	   completed.
+	*/
 	Close()
 
-/*
-See the StaticClient interface for documentation on event listeners.
-*/
+	/*
+	   See the StaticClient interface for documentation on event listeners.
+	*/
 	StaticClient
 }
 
 /*
-poolClient implements DynamicClient.
+dynamicClient implements DynamicClient.
 */
-type poolClient struct {
+type dynamicClient struct {
 	insertChannel       chan Member
 	closeNotifier       chan struct{}
 	closeOnce           *sync.Once
@@ -75,8 +75,8 @@ type poolClient struct {
 	exitBroadcaster     *exitEventBroadcaster
 }
 
-func newPoolClient(bufferSize int) poolClient {
-	return poolClient{
+func newClient(bufferSize int) dynamicClient {
+	return dynamicClient{
 		insertChannel:       make(chan Member),
 		closeNotifier:       make(chan struct{}),
 		closeOnce:           new(sync.Once),
@@ -85,54 +85,54 @@ func newPoolClient(bufferSize int) poolClient {
 	}
 }
 
-func (c poolClient) Get(Member) (ifrit.Process, bool) {
+func (c dynamicClient) Get(Member) (ifrit.Process, bool) {
 	return nil, false
 }
 
-func (c poolClient) Inserter() chan<- Member {
+func (c dynamicClient) Inserter() chan<- Member {
 	return c.insertChannel
 }
 
-func (c poolClient) insertEventListener() <-chan Member {
+func (c dynamicClient) insertEventListener() <-chan Member {
 	return c.insertChannel
 }
 
-func (c poolClient) EntranceListener() <-chan EntranceEvent {
+func (c dynamicClient) EntranceListener() <-chan EntranceEvent {
 	return c.entranceBroadcaster.Attach()
 }
 
-func (c poolClient) broadcastEntrance(event EntranceEvent) {
+func (c dynamicClient) broadcastEntrance(event EntranceEvent) {
 	c.entranceBroadcaster.Broadcast(event)
 }
 
-func (c poolClient) closeEntranceBroadcaster() {
+func (c dynamicClient) closeEntranceBroadcaster() {
 	c.entranceBroadcaster.Close()
 }
 
-func (c poolClient) ExitListener() <-chan ExitEvent {
+func (c dynamicClient) ExitListener() <-chan ExitEvent {
 	return c.exitBroadcaster.Attach()
 }
 
-func (c poolClient) broadcastExit(event ExitEvent) {
+func (c dynamicClient) broadcastExit(event ExitEvent) {
 	c.exitBroadcaster.Broadcast(event)
 }
 
-func (c poolClient) closeExitBroadcaster() {
+func (c dynamicClient) closeExitBroadcaster() {
 	c.exitBroadcaster.Close()
 }
 
-func (c poolClient) closeBroadcasters() error {
+func (c dynamicClient) closeBroadcasters() error {
 	c.entranceBroadcaster.Close()
 	c.exitBroadcaster.Close()
 	return nil
 }
 
-func (c poolClient) Close() {
+func (c dynamicClient) Close() {
 	c.closeOnce.Do(func() {
 		close(c.closeNotifier)
 	})
 }
 
-func (c poolClient) CloseNotifier() <-chan struct{} {
+func (c dynamicClient) CloseNotifier() <-chan struct{} {
 	return c.closeNotifier
 }

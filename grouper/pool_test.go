@@ -10,10 +10,10 @@ import (
 	"github.com/tedsuo/ifrit/grouper"
 )
 
-var _ = Describe("Pool", func() {
+var _ = Describe("dynamicGroup", func() {
 	var (
 		client      grouper.DynamicClient
-		pool        *grouper.Pool
+		pool        grouper.DynamicGroup
 		poolProcess ifrit.Process
 
 		childRunner1 *fake_runner.TestRunner
@@ -40,7 +40,7 @@ var _ = Describe("Pool", func() {
 			member2 = grouper.Member{"child2", childRunner2}
 			member3 = grouper.Member{"child3", childRunner3}
 
-			pool = grouper.NewPool(nil, 3, 2)
+			pool = grouper.NewDynamic(nil, 3, 2)
 			client = pool.Client()
 			poolProcess = ifrit.Envoke(pool)
 

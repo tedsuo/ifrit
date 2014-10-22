@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/tedsuo/ifrit"
-	"github.com/tedsuo/ifrit/proxy"
 )
 
 type StaticGroup interface {
@@ -28,7 +27,7 @@ are insufficient.
 */
 func NewStatic(signal os.Signal, members []Member, init func(members Members, client DynamicClient)) StaticGroup {
 	return staticGroup{
-		pool:    NewPool(signal, len(members), len(members)),
+		pool:    NewDynamic(signal, len(members), len(members)),
 		Members: members,
 		Init:    init,
 	}
@@ -39,7 +38,7 @@ func (g staticGroup) Client() StaticClient {
 }
 
 func (g staticGroup) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
-	err := g.Validate()
+	err := g.Members.Validate()
 	if err != nil {
 		return err
 	}
@@ -47,7 +46,7 @@ func (g staticGroup) Run(signals <-chan os.Signal, ready chan<- struct{}) error 
 	bufferSize := len(g.Members)
 	client := g.pool.Client()
 
-	go ifrit.Envoke(proxy.New(signals, g.pool))
+	go g.pool.Run(signals, make(chan<- struct{}))
 
 	go func() {
 		g.Init(g.Members, client)
