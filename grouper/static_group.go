@@ -39,8 +39,12 @@ func (g staticGroup) Client() StaticClient {
 }
 
 func (g staticGroup) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
-	bufferSize := len(g.Members)
+	err := g.Validate()
+	if err != nil {
+		return err
+	}
 
+	bufferSize := len(g.Members)
 	client := g.pool.Client()
 
 	go ifrit.Envoke(proxy.New(signals, g.pool))
