@@ -15,8 +15,6 @@ import (
 
 var _ = Describe("Serial Group", func() {
 	var (
-		started chan struct{}
-
 		groupRunner  ifrit.Runner
 		groupProcess ifrit.Process
 
@@ -46,23 +44,18 @@ var _ = Describe("Serial Group", func() {
 		childRunner1.EnsureExit()
 		childRunner2.EnsureExit()
 		childRunner3.EnsureExit()
-
-		Eventually(started).Should(BeClosed())
 		groupProcess.Signal(os.Kill)
 		Eventually(groupProcess.Wait()).Should(Receive())
 	})
 
 	Describe("Invoke", func() {
 		BeforeEach(func() {
-			started = make(chan struct{})
-			go func() {
-				groupProcess = ifrit.Envoke(groupRunner)
-				close(started)
-			}()
+			groupProcess = ifrit.Background(groupRunner)
 		})
 
 		Describe("serial execution", func() {
 			It("executes the runners one at a time", func() {
+				started := groupProcess.Ready()
 				Eventually(childRunner1.RunCallCount).Should(Equal(1))
 				Consistently(childRunner2.RunCallCount, Δ).Should(BeZero())
 				Consistently(started, Δ).ShouldNot(BeClosed())
@@ -101,24 +94,25 @@ var _ = Describe("Serial Group", func() {
 				childRunner2.TriggerExit(nil)
 				childRunner3.TriggerReady()
 				childRunner3.TriggerExit(nil)
-				Eventually(started).Should(BeClosed())
 			})
 
 			It("exits cleanly", func() {
 				Eventually(groupProcess.Wait()).Should(Receive(BeNil()))
 			})
 		})
+	})
 
-		Describe("Failed start", func() {
+	Describe("Failed start", func() {
+		Context("when a member exits with an error", func() {
 			BeforeEach(func() {
+				groupProcess = ifrit.Background(groupRunner)
 				childRunner1.TriggerReady()
 				childRunner1.TriggerExit(nil)
 				childRunner2.TriggerReady()
 				childRunner2.TriggerExit(errors.New("Fail"))
-				Eventually(started).Should(BeClosed())
 			})
 
-			It("exits without starting further processes", func() {
+			It("the group exits without starting further processes", func() {
 				var err error
 
 				Eventually(groupProcess.Wait()).Should(Receive(&err))

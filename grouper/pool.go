@@ -62,11 +62,14 @@ func (p *Pool) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 
 			process := ifrit.Background(newMember)
 			processes.Add(newMember.Name, process)
+
 			if processes.Length() == p.poolSize {
 				insertEvents = nil
 			}
+
 			invoking++
-			waitForEvents(newMember, process, entranceEvents, exitEvents)
+
+			go waitForEvents(newMember, process, entranceEvents, exitEvents)
 
 		case entranceEvent := <-entranceEvents:
 			invoking--
@@ -98,8 +101,12 @@ func (p *Pool) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	}
 }
 
-func waitForEvents(member Member, process ifrit.Process, entrance entranceEventChannel, exit exitEventChannel) {
-	go func() {
+func waitForEvents(
+	member Member,
+	process ifrit.Process,
+	entrance entranceEventChannel,
+	exit exitEventChannel,
+) {
 		select {
 		case <-process.Ready():
 			entrance <- EntranceEvent{
@@ -123,7 +130,6 @@ func waitForEvents(member Member, process ifrit.Process, entrance entranceEventC
 				Err:    err,
 			}
 		}
-	}()
 }
 
 type processSet struct {
