@@ -19,7 +19,14 @@ type staticGroup struct {
 	Init func(members Members, client DynamicClient)
 }
 
-func newStatic(signal os.Signal, members []Member, init func(members Members, client DynamicClient)) StaticGroup {
+/*
+NewStatic creates a static group which starts according to it's init function.
+Within the init function, the static group acts as a dynamic group. Once the
+init function returns, the group is closed and acts as static group.  Use this
+lower-level constructor if the NewParallel, NewOrdered, or NewSerial strategies
+are insufficient.
+*/
+func NewStatic(signal os.Signal, members []Member, init func(members Members, client DynamicClient)) StaticGroup {
 	return staticGroup{
 		pool:    NewPool(signal, len(members), len(members)),
 		Members: members,

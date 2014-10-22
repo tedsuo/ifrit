@@ -7,7 +7,7 @@ NewParallel creates a static group which starts it's members simultaneously.
 Use a parallel group to describe a set of concurrent but independent processes.
 */
 func NewParallel(signal os.Signal, members []Member) StaticGroup {
-	return newStatic(signal, members, parallelInit)
+	return NewStatic(signal, members, parallelInit)
 }
 
 func parallelInit(members Members, client DynamicClient) {
@@ -36,7 +36,7 @@ describe a list of dependent processes, where each process depends upon the
 previous being available in order to function correctly.
 */
 func NewOrdered(signal os.Signal, members []Member) StaticGroup {
-	return newStatic(signal, members, orderedInit)
+	return NewStatic(signal, members, orderedInit)
 }
 
 func orderedInit(members Members, client DynamicClient) {
@@ -61,7 +61,7 @@ a pipeline of sequential processes.  Receiving s signal or a member exiting
 with an error aborts the pipeline.
 */
 func NewSerial(members []Member) StaticGroup {
-	return newStatic(nil, members, serialInit)
+	return NewStatic(nil, members, serialInit)
 }
 
 func serialInit(members Members, client DynamicClient) {
