@@ -2,6 +2,9 @@ package grouper
 
 import "sync"
 
+/*
+An ExitEvent occurs every time an invoked member exits.
+*/
 type ExitEvent struct {
 	Member Member
 	Err    error

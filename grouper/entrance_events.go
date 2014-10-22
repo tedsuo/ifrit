@@ -6,6 +6,9 @@ import (
 	"github.com/tedsuo/ifrit"
 )
 
+/*
+An EntranceEvent occurs every time an invoked member becomes ready.
+*/
 type EntranceEvent struct {
 	Member  Member
 	Process ifrit.Process

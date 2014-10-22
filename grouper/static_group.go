@@ -55,32 +55,13 @@ func (g staticGroup) Run(signals <-chan os.Signal, ready chan<- struct{}) error 
 		close(ready)
 	}()
 
-	errorTrace := NewErrorTrace(bufferSize)
-	errorTrace = errorTrace.TraceExitEvents(client.ExitListener())
-	return errorTrace.ToError()
+	return traceExitEvents(make(ErrorTrace, 0, bufferSize), client.ExitListener())
 }
 
+/*
+ErrorTrace is an error returned by a static group if any member exited with an error.
+*/
 type ErrorTrace []ExitEvent
-
-func NewErrorTrace(bufferSize int) ErrorTrace {
-	return make(ErrorTrace, 0, bufferSize)
-}
-
-func (trace ErrorTrace) TraceExitEvents(exitEvents <-chan ExitEvent) ErrorTrace {
-	for exitEvent := range exitEvents {
-		trace = append(trace, exitEvent)
-	}
-	return trace
-}
-
-func (trace ErrorTrace) ToError() error {
-	for _, exit := range trace {
-		if exit.Err != nil {
-			return trace
-		}
-	}
-	return nil
-}
 
 func (trace ErrorTrace) Error() string {
 	msg := "Exit trace for group:\n"
@@ -94,4 +75,19 @@ func (trace ErrorTrace) Error() string {
 	}
 
 	return msg
+}
+
+func traceExitEvents(trace ErrorTrace, exitEvents <-chan ExitEvent) error {
+	errorOccurred := false
+	for exitEvent := range exitEvents {
+		if exitEvent.Err != nil {
+			errorOccurred = true
+		}
+		trace = append(trace, exitEvent)
+	}
+	if errorOccurred {
+		return trace
+	} else {
+		return nil
+	}
 }
