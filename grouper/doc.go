@@ -14,7 +14,7 @@ list of members, and starts the members in the following manner:
 
 The DynamicGroup allows up to N processes to be run concurrently. The dynamic
 group runs indefinitely until it is closed or signaled. A dynamic group has the
-followinf properties:
+following properties:
 
   - A dynamic group allows Members to be inserted until it is closed.
   - A dynamic group can be manually closed via it's client.

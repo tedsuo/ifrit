@@ -7,6 +7,12 @@ import (
 	"github.com/tedsuo/ifrit"
 )
 
+/*
+A StaticGroup runs a list of members.  Once all members exit, the group
+exits.  If a member exits without first being signaled, the group's termination
+signal will be propogated to all remaining members. A nil termination signal is
+not propogated.
+*/
 type StaticGroup interface {
 	ifrit.Runner
 	Client() StaticClient
@@ -19,11 +25,16 @@ type staticGroup struct {
 }
 
 /*
-NewStatic creates a static group which starts according to it's init function.
-Within the init function, the static group acts as a dynamic group. Once the
-init function returns, the group is closed and acts as static group.  Use this
-lower-level constructor if the NewParallel, NewOrdered, or NewSerial strategies
-are insufficient.
+NewStatic creates a static group strategy. Use this lower-level constructor if
+the NewParallel, NewOrdered, or NewSerial strategies are insufficient.
+
+The init function defines how the group will start.  Within the init function,
+the static group acts as a dynamic group. Once the init function returns, the
+group is closed and waits for any running members to complete.
+
+The signal argument sets the termination signal.  If a member exits before
+being signaled, the group propogates the termination signal.  A nil termination
+signal is not propogated.
 */
 func NewStatic(signal os.Signal, members []Member, init func(members Members, client DynamicClient)) StaticGroup {
 	return staticGroup{

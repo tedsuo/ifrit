@@ -7,6 +7,13 @@ import (
 	"github.com/tedsuo/ifrit"
 )
 
+/*
+A DynamicGroup begins empty, and runs members as they are inserted. A
+dynamic group will continue to run, even when there are no members running
+within it, until it is signaled to stop. Once a dynamic group is signaled to
+stop, it will no longer accept new members, and waits for the currently running
+members to complete before exiting.
+*/
 type DynamicGroup interface {
 	ifrit.Runner
 	Client() DynamicClient
@@ -18,10 +25,25 @@ type dynamicGroup struct {
 	poolSize int
 }
 
-func NewDynamic(signal os.Signal, poolSize int, eventBufferSize int) DynamicGroup {
+/*
+NewDynamic creates a DynamicGroup.
+
+The maxCapacity argument sets the maximum number of concurrent processes.
+
+The eventBufferSize argument sets the number of entrance and exit events to be
+retained by the system.  When a new event listener attaches, it will receive
+any previously emitted events, up to the eventBufferSize.  Older events will be
+thrown away.  The event buffer is meant to be used to avoid race conditions when
+the total number of members is known in advance.
+
+The signal argument sets the termination signal.  If a member exits before
+being signaled, the group propogates the termination signal.  A nil termination
+signal is not propogated.
+*/
+func NewDynamic(signal os.Signal, maxCapacity int, eventBufferSize int) DynamicGroup {
 	return &dynamicGroup{
 		client:   newClient(eventBufferSize),
-		poolSize: poolSize,
+		poolSize: maxCapacity,
 		signal:   signal,
 	}
 }
