@@ -74,6 +74,9 @@ func (p *dynamicGroup) Run(signals <-chan os.Signal, ready chan<- struct{}) erro
 			if processes.Length() == 0 {
 				return p.client.closeBroadcasters()
 			}
+			if invoking == 0 {
+				p.client.closeEntranceBroadcaster()
+			}
 
 		case newMember, ok := <-insertEvents:
 			if !ok {
