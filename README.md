@@ -1,5 +1,4 @@
-/*
-A process model for go.
+# Ifrit - a process model for go.
 
 Ifrit is a small set of interfaces for composing single-purpose units of work
 into larger programs. Users divide their program into single purpose units of
@@ -19,7 +18,7 @@ and thus can be made reliable.  Ifrit's interfaces are designed to be free
 of race conditions and edge cases, allowing larger orcestrated process to also
 be made reliable.  The overall effect is less code and more reliability as your
 system grows with grace.
-*/
-package ifrit
 
+The full documentation is written in godoc, and can be found at:
 
+http://godoc.org/github.com/tedsuo/ifrit

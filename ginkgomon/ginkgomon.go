@@ -1,3 +1,6 @@
+/*
+Ginkgomon provides ginkgo test helpers.
+*/
 package ginkgomon
 
 import (
@@ -13,15 +16,26 @@ import (
 	"github.com/onsi/gomega/gexec"
 )
 
+// Config defines a ginkgomon Runner.
 type Config struct {
-	Command           *exec.Cmd
-	Name              string
-	AnsiColorCode     string
-	StartCheck        string
-	StartCheckTimeout time.Duration
-	Cleanup           func()
+	Command           *exec.Cmd 		// process to be executed
+	Name              string 				// prefixes all output lines
+	AnsiColorCode     string 				// colors the output
+	StartCheck        string 				// text to match to indicate sucessful start.
+	StartCheckTimeout time.Duration // how long to wait to see StartCheck
+	Cleanup           func() 				// invoked once the process exits
 }
 
+/*
+The ginkgomon Runner invokes a new process using gomega's gexec package.
+
+If a start check is defined, the runner will wait until it sees the start check
+before declaring ready.
+
+Runner implements gexec.Exiter and gbytes.BufferProvider, so you can test exit
+codes and process output using the appropriate gomega matchers:
+http://onsi.github.io/gomega/#gexec-testing-external-processes
+*/
 type Runner struct {
 	Command           *exec.Cmd
 	Name              string
@@ -33,6 +47,8 @@ type Runner struct {
 	sessionReady      chan struct{}
 }
 
+// New creates a ginkgomon Runner from a config object. Runners must be created
+// with New to properly initialize their internal state.
 func New(config Config) *Runner {
 	return &Runner{
 		Name:              config.Name,
@@ -45,17 +61,20 @@ func New(config Config) *Runner {
 	}
 }
 
+// ExitCode returns the exit code of the process, or -1 if the process has not
+// exited.  It can be used with the gexec.Exit matcher.
 func (r *Runner) ExitCode() int {
 	if r.sessionReady == nil {
-		panic("ginkgomon improperly created without using New")
+		ginkgo.Fail(fmt.Sprintf("ginkgomon.Runner '%s' improperly created without using New",r.Name))
 	}
 	<-r.sessionReady
 	return r.session.ExitCode()
 }
 
+// Buffer returns a gbytes.Buffer, for use with the gbytes.Say matcher.
 func (r *Runner) Buffer() *gbytes.Buffer {
 	if r.sessionReady == nil {
-		panic("ginkgomon improperly created without using New")
+		ginkgo.Fail(fmt.Sprintf("ginkgomon.Runner '%s' improperly created without using New",r.Name))
 	}
 	<-r.sessionReady
 	return r.session.Buffer()
