@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"syscall"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/tedsuo/ifrit"
@@ -63,22 +64,21 @@ var _ = Describe("HttpServer", func() {
 					<-startedRequestChan
 				})
 
-				AfterEach(func(done Done) {
-					<-responses
-					close(done)
+				AfterEach(func() {
+					Eventually(responses).Should(BeClosed())
 				})
 
-				It("serves http requests with the given handler", func(done Done) {
+				It("serves http requests with the given handler", func() {
 					finishRequestChan <- struct{}{}
 
-					resp := <-responses
+					var resp httpResponse
+					Eventually(responses).Should(Receive(&resp))
 
 					Ω(resp.err).ShouldNot(HaveOccurred())
 
 					body, err := ioutil.ReadAll(resp.response.Body)
 					Ω(err).ShouldNot(HaveOccurred())
 					Ω(string(body)).Should(Equal("yo"))
-					close(done)
 				})
 
 				Context("and it receives a signal", func() {

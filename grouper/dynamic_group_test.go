@@ -2,7 +2,9 @@ package grouper_test
 
 import (
 	"os"
+	"syscall"
 	"time"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/tedsuo/ifrit"
@@ -30,6 +32,38 @@ var _ = Describe("dynamicGroup", func() {
 		childRunner1.EnsureExit()
 		childRunner2.EnsureExit()
 		childRunner3.EnsureExit()
+	})
+
+	Describe("Get", func() {
+		var member1, member2, member3 grouper.Member
+
+		BeforeEach(func() {
+			member1 = grouper.Member{"child1", childRunner1}
+			member2 = grouper.Member{"child2", childRunner2}
+			member3 = grouper.Member{"child3", childRunner3}
+
+			pool = grouper.NewDynamic(nil, 3, 2)
+			client = pool.Client()
+			poolProcess = ifrit.Envoke(pool)
+
+			insert := client.Inserter()
+			Eventually(insert).Should(BeSent(member1))
+			Eventually(insert).Should(BeSent(member2))
+			Eventually(insert).Should(BeSent(member3))
+		})
+
+		It("returns a process when the member is present", func() {
+			signal1 := childRunner1.WaitForCall()
+			p, ok := client.Get("child1")
+			Ω(ok).Should(BeTrue())
+			p.Signal(syscall.SIGUSR2)
+			Eventually(signal1).Should(Receive(Equal(syscall.SIGUSR2)))
+		})
+
+		It("returns false when the member is not present", func() {
+			_, ok := client.Get("blah")
+			Ω(ok).Should(BeFalse())
+		})
 	})
 
 	Describe("Insert", func() {

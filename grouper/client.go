@@ -7,11 +7,13 @@ import (
 )
 
 /*
-StaticClient provides a client with event notifications, via channels.
-Event channels are independent of each other. Each event channel has a buffer,
-which records events and will drop events once the buffer is filled.
+DynamicClient provides a client with group controls and event notifications.
+A client can use the insert channel to add members to the group. When the group
+becomes full, the insert channel blocks until a running process exits the group.
+Once there are no more members have been added, the client can close the dynamic
+group, preventing new members to be added.
 */
-type StaticClient interface {
+type DynamicClient interface {
 
 	/*
 	   EntranceListener provides a new buffered channel of entrance events, which are
@@ -33,17 +35,6 @@ type StaticClient interface {
 	   once the group has been closed.
 	*/
 	CloseNotifier() <-chan struct{}
-}
-
-/*
-DynamicClient provides a client with group controls and event notifications.
-A client can use the insert channel to add members to the group. When the group
-becomes full, the insert channel blocks until a running process exits the group.
-Once there are no more members have been added, the client can close the dynamic
-group, which causes it to become a static group.
-*/
-type DynamicClient interface {
-
 	/*
 	   Inserter provides an unbuffered channel for adding members to a group. When the
 	   group becomes full, the insert channel blocks until a running process exits.
@@ -58,10 +49,12 @@ type DynamicClient interface {
 	*/
 	Close()
 
-	/*
-	   See the StaticClient interface for documentation on event listeners.
-	*/
-	StaticClient
+	Get(name string) (ifrit.Process, bool)
+}
+
+type memberRequest struct {
+	Name     string
+	Response chan ifrit.Process
 }
 
 /*
@@ -69,6 +62,8 @@ dynamicClient implements DynamicClient.
 */
 type dynamicClient struct {
 	insertChannel       chan Member
+	getMemberChannel    chan memberRequest
+	completeNotifier    chan struct{}
 	closeNotifier       chan struct{}
 	closeOnce           *sync.Once
 	entranceBroadcaster *entranceEventBroadcaster
@@ -78,6 +73,8 @@ type dynamicClient struct {
 func newClient(bufferSize int) dynamicClient {
 	return dynamicClient{
 		insertChannel:       make(chan Member),
+		getMemberChannel:    make(chan memberRequest),
+		completeNotifier:    make(chan struct{}),
 		closeNotifier:       make(chan struct{}),
 		closeOnce:           new(sync.Once),
 		entranceBroadcaster: newEntranceEventBroadcaster(bufferSize),
@@ -85,8 +82,25 @@ func newClient(bufferSize int) dynamicClient {
 	}
 }
 
-func (c dynamicClient) Get(Member) (ifrit.Process, bool) {
-	return nil, false
+func (c dynamicClient) Get(name string) (ifrit.Process, bool) {
+	req := memberRequest{
+		Name:     name,
+		Response: make(chan ifrit.Process),
+	}
+	select {
+	case c.getMemberChannel <- req:
+		p, ok := <-req.Response
+		if !ok {
+			return nil, false
+		}
+		return p, true
+	case <-c.completeNotifier:
+		return nil, false
+	}
+}
+
+func (c dynamicClient) memberRequests() chan memberRequest {
+	return c.getMemberChannel
 }
 
 func (c dynamicClient) Inserter() chan<- Member {
@@ -124,6 +138,7 @@ func (c dynamicClient) closeExitBroadcaster() {
 func (c dynamicClient) closeBroadcasters() error {
 	c.entranceBroadcaster.Close()
 	c.exitBroadcaster.Close()
+	close(c.completeNotifier)
 	return nil
 }
 

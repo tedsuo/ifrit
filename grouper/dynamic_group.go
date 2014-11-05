@@ -20,9 +20,9 @@ type DynamicGroup interface {
 }
 
 type dynamicGroup struct {
-	client   dynamicClient
-	signal   os.Signal
-	poolSize int
+	client            dynamicClient
+	terminationSignal os.Signal
+	poolSize          int
 }
 
 /*
@@ -40,11 +40,11 @@ The signal argument sets the termination signal.  If a member exits before
 being signaled, the group propogates the termination signal.  A nil termination
 signal is not propogated.
 */
-func NewDynamic(signal os.Signal, maxCapacity int, eventBufferSize int) DynamicGroup {
+func NewDynamic(terminationSignal os.Signal, maxCapacity int, eventBufferSize int) DynamicGroup {
 	return &dynamicGroup{
-		client:   newClient(eventBufferSize),
-		poolSize: maxCapacity,
-		signal:   signal,
+		client:            newClient(eventBufferSize),
+		poolSize:          maxCapacity,
+		terminationSignal: terminationSignal,
 	}
 }
 
@@ -55,6 +55,7 @@ func (p *dynamicGroup) Client() DynamicClient {
 func (p *dynamicGroup) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	processes := newProcessSet()
 	insertEvents := p.client.insertEventListener()
+	memberRequests := p.client.memberRequests()
 	closeNotifier := p.client.CloseNotifier()
 	entranceEvents := make(entranceEventChannel)
 	exitEvents := make(exitEventChannel)
@@ -77,6 +78,13 @@ func (p *dynamicGroup) Run(signals <-chan os.Signal, ready chan<- struct{}) erro
 			if invoking == 0 {
 				p.client.closeEntranceBroadcaster()
 			}
+
+		case memberRequest := <-memberRequests:
+			p, ok := processes.Get(memberRequest.Name)
+			if ok {
+				memberRequest.Response <- p
+			}
+			close(memberRequest.Response)
 
 		case newMember, ok := <-insertEvents:
 			if !ok {
@@ -109,8 +117,8 @@ func (p *dynamicGroup) Run(signals <-chan os.Signal, ready chan<- struct{}) erro
 			processes.Remove(exitEvent.Member.Name)
 			p.client.broadcastExit(exitEvent)
 
-			if !processes.Signaled() && p.signal != nil {
-				processes.Signal(p.signal)
+			if !processes.Signaled() && p.terminationSignal != nil {
+				processes.Signal(p.terminationSignal)
 				p.client.Close()
 				insertEvents = nil
 			}
@@ -119,7 +127,7 @@ func (p *dynamicGroup) Run(signals <-chan os.Signal, ready chan<- struct{}) erro
 				return p.client.closeBroadcasters()
 			}
 
-			if !processes.Signaled() {
+			if !processes.Signaled() && closeNotifier != nil {
 				insertEvents = p.client.insertEventListener()
 			}
 		}
@@ -174,6 +182,7 @@ func (g *processSet) Signaled() bool {
 
 func (g *processSet) Signal(signal os.Signal) {
 	g.shutdown = signal
+
 	for _, p := range g.processes {
 		p.Signal(signal)
 	}
@@ -185,6 +194,11 @@ func (g *processSet) Length() int {
 
 func (g *processSet) Complete() bool {
 	return len(g.processes) == 0 && g.shutdown != nil
+}
+
+func (g *processSet) Get(name string) (ifrit.Process, bool) {
+	p, ok := g.processes[name]
+	return p, ok
 }
 
 func (g *processSet) Add(name string, process ifrit.Process) {

@@ -52,7 +52,7 @@ func Background(r Runner) Process {
 
 type process struct {
 	runner     Runner
-	signals        chan os.Signal
+	signals    chan os.Signal
 	ready      chan struct{}
 	exited     chan struct{}
 	exitStatus error
@@ -60,10 +60,10 @@ type process struct {
 
 func newProcess(runner Runner) *process {
 	return &process{
-		runner: runner,
-		signals:    make(chan os.Signal),
-		ready:  make(chan struct{}),
-		exited: make(chan struct{}),
+		runner:  runner,
+		signals: make(chan os.Signal),
+		ready:   make(chan struct{}),
+		exited:  make(chan struct{}),
 	}
 }
 
