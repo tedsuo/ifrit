@@ -18,12 +18,12 @@ import (
 
 // Config defines a ginkgomon Runner.
 type Config struct {
-	Command           *exec.Cmd 		// process to be executed
-	Name              string 				// prefixes all output lines
-	AnsiColorCode     string 				// colors the output
-	StartCheck        string 				// text to match to indicate sucessful start.
+	Command           *exec.Cmd     // process to be executed
+	Name              string        // prefixes all output lines
+	AnsiColorCode     string        // colors the output
+	StartCheck        string        // text to match to indicate sucessful start.
 	StartCheckTimeout time.Duration // how long to wait to see StartCheck
-	Cleanup           func() 				// invoked once the process exits
+	Cleanup           func()        // invoked once the process exits
 }
 
 /*
@@ -65,7 +65,7 @@ func New(config Config) *Runner {
 // exited.  It can be used with the gexec.Exit matcher.
 func (r *Runner) ExitCode() int {
 	if r.sessionReady == nil {
-		ginkgo.Fail(fmt.Sprintf("ginkgomon.Runner '%s' improperly created without using New",r.Name))
+		ginkgo.Fail(fmt.Sprintf("ginkgomon.Runner '%s' improperly created without using New", r.Name))
 	}
 	<-r.sessionReady
 	return r.session.ExitCode()
@@ -74,7 +74,7 @@ func (r *Runner) ExitCode() int {
 // Buffer returns a gbytes.Buffer, for use with the gbytes.Say matcher.
 func (r *Runner) Buffer() *gbytes.Buffer {
 	if r.sessionReady == nil {
-		ginkgo.Fail(fmt.Sprintf("ginkgomon.Runner '%s' improperly created without using New",r.Name))
+		ginkgo.Fail(fmt.Sprintf("ginkgomon.Runner '%s' improperly created without using New", r.Name))
 	}
 	<-r.sessionReady
 	return r.session.Buffer()
@@ -84,6 +84,11 @@ func (r *Runner) Run(sigChan <-chan os.Signal, ready chan<- struct{}) error {
 	defer ginkgo.GinkgoRecover()
 
 	allOutput := gbytes.NewBuffer()
+
+	debugWriter := gexec.NewPrefixedWriter(
+		fmt.Sprintf("\x1b[32m[d]\x1b[%s[%s]\x1b[0m ", r.AnsiColorCode, r.Name),
+		ginkgo.GinkgoWriter,
+	)
 
 	session, err := gexec.Start(
 		r.Command,
@@ -98,6 +103,8 @@ func (r *Runner) Run(sigChan <-chan os.Signal, ready chan<- struct{}) error {
 	)
 
 	Ω(err).ShouldNot(HaveOccurred())
+
+	fmt.Fprintf(debugWriter, "spawned %s (pid: %d)\n", r.Command.Path, r.Command.Process.Pid)
 
 	r.session = session
 	if r.sessionReady != nil {
