@@ -27,6 +27,8 @@ func Interrupt(process ifrit.Process) {
 }
 
 func Kill(process ifrit.Process) {
-	process.Signal(os.Kill)
-	Eventually(process.Wait()).Should(Receive(), "killed ginkgomon process failed to exit in time")
+	if process != nil {
+		process.Signal(os.Kill)
+		Eventually(process.Wait()).Should(Receive(), "killed ginkgomon process failed to exit in time")
+	}
 }
