@@ -53,13 +53,12 @@ func (o parallelGroup) validate() error {
 func (g *parallelGroup) parallelStart(signals <-chan os.Signal) (os.Signal, ErrorTrace) {
 	numMembers := len(g.members)
 
-	processes := make([]ifrit.Process, numMembers)
 	cases := make([]reflect.SelectCase, 2*numMembers+1)
 
 	for i, member := range g.members {
 		process := ifrit.Background(member)
 
-		processes[i] = process
+		g.pool[member.Name] = process
 
 		cases[2*i] = reflect.SelectCase{
 			Dir:  reflect.SelectRecv,
@@ -89,7 +88,6 @@ func (g *parallelGroup) parallelStart(signals <-chan os.Signal) (os.Signal, Erro
 			return nil, ErrorTrace{ExitEvent{Member: g.members[chosen/2], Err: recvError}}
 		default:
 			cases[chosen].Chan = reflect.Zero(cases[chosen].Chan.Type())
-			g.pool[g.members[chosen/2].Name] = processes[chosen/2]
 			numReady++
 			if numReady == numMembers {
 				return nil, nil
@@ -147,20 +145,20 @@ func (g *parallelGroup) stop(signal os.Signal, errTrace ErrorTrace) ErrorTrace {
 		if _, found := exited[member.Name]; found {
 			continue
 		}
-		if process, ok := g.pool[member.Name]; ok {
-			process.Signal(signal)
 
-			cases = append(cases, reflect.SelectCase{
-				Dir:  reflect.SelectRecv,
-				Chan: reflect.ValueOf(process.Wait()),
-			})
+		process := g.pool[member.Name]
 
-			liveMembers = append(liveMembers, member)
-		}
+		process.Signal(signal)
+
+		cases = append(cases, reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(process.Wait()),
+		})
+
+		liveMembers = append(liveMembers, member)
 	}
 
-	numExited := 0
-	for {
+	for numExited := 0; numExited < len(cases); numExited++ {
 		chosen, recv, _ := reflect.Select(cases)
 		cases[chosen].Chan = reflect.Zero(cases[chosen].Chan.Type())
 		recvError, _ := recv.Interface().(error)
@@ -172,11 +170,6 @@ func (g *parallelGroup) stop(signal os.Signal, errTrace ErrorTrace) ErrorTrace {
 
 		if recvError != nil {
 			errOccurred = true
-		}
-
-		numExited++
-		if numExited == len(cases) {
-			break
 		}
 	}
 
