@@ -33,17 +33,17 @@ func (g parallelGroup) Run(signals <-chan os.Signal, ready chan<- struct{}) erro
 
 	signal, errTrace := g.parallelStart(signals)
 	if errTrace != nil {
-		return g.stop(g.terminationSignal, errTrace)
+		return g.stop(g.terminationSignal, errTrace).ErrorOrNil()
 	}
 
 	if signal != nil {
-		return g.stop(signal, errTrace)
+		return g.stop(signal, errTrace).ErrorOrNil()
 	}
 
 	close(ready)
 
 	signal, errTrace = g.waitForSignal(signals, errTrace)
-	return g.stop(signal, errTrace)
+	return g.stop(signal, errTrace).ErrorOrNil()
 }
 
 func (o parallelGroup) validate() error {
