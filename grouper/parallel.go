@@ -33,17 +33,17 @@ func (g parallelGroup) Run(signals <-chan os.Signal, ready chan<- struct{}) erro
 
 	signal, errTrace := g.parallelStart(signals)
 	if errTrace != nil {
-		return g.stop(g.terminationSignal, errTrace).ErrorOrNil()
+		return g.stop(g.terminationSignal, signals, errTrace).ErrorOrNil()
 	}
 
 	if signal != nil {
-		return g.stop(signal, errTrace).ErrorOrNil()
+		return g.stop(signal, signals, errTrace).ErrorOrNil()
 	}
 
 	close(ready)
 
 	signal, errTrace = g.waitForSignal(signals, errTrace)
-	return g.stop(signal, errTrace).ErrorOrNil()
+	return g.stop(signal, signals, errTrace).ErrorOrNil()
 }
 
 func (o parallelGroup) validate() error {
@@ -127,7 +127,7 @@ func (g *parallelGroup) waitForSignal(signals <-chan os.Signal, errTrace ErrorTr
 	return g.terminationSignal, errTrace
 }
 
-func (g *parallelGroup) stop(signal os.Signal, errTrace ErrorTrace) ErrorTrace {
+func (g *parallelGroup) stop(signal os.Signal, signals <-chan os.Signal, errTrace ErrorTrace) ErrorTrace {
 	errOccurred := false
 	exited := map[string]struct{}{}
 	if len(errTrace) > 0 {
@@ -158,10 +158,24 @@ func (g *parallelGroup) stop(signal os.Signal, errTrace ErrorTrace) ErrorTrace {
 		liveMembers = append(liveMembers, member)
 	}
 
-	for numExited := 0; numExited < len(cases); numExited++ {
+	cases = append(cases, reflect.SelectCase{
+		Dir:  reflect.SelectRecv,
+		Chan: reflect.ValueOf(signals),
+	})
+
+	// account for the signals channel
+	for numExited := 1; numExited < len(cases); numExited++ {
 		chosen, recv, _ := reflect.Select(cases)
 		cases[chosen].Chan = reflect.Zero(cases[chosen].Chan.Type())
 		recvError, _ := recv.Interface().(error)
+
+		if chosen == len(cases)-1 {
+			signal = recv.Interface().(os.Signal)
+			for _, member := range liveMembers {
+				g.pool[member.Name].Signal(signal)
+			}
+			continue
+		}
 
 		errTrace = append(errTrace, ExitEvent{
 			Member: liveMembers[chosen],
