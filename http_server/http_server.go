@@ -13,10 +13,10 @@ type httpServer struct {
 	address string
 	handler http.Handler
 
-	connectionWaitGroup   *sync.WaitGroup
-	inactiveConnections   map[net.Conn]struct{}
-	inactiveConnectionsMu *sync.Mutex
-	stoppingChan          chan struct{}
+	connectionWaitGroup *sync.WaitGroup
+	connections         map[net.Conn]struct{}
+	connectionsMu       *sync.Mutex
+	stoppingChan        chan struct{}
 }
 
 func New(address string, handler http.Handler) ifrit.Runner {
@@ -28,8 +28,8 @@ func New(address string, handler http.Handler) ifrit.Runner {
 
 func (s *httpServer) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	s.connectionWaitGroup = new(sync.WaitGroup)
-	s.inactiveConnectionsMu = new(sync.Mutex)
-	s.inactiveConnections = make(map[net.Conn]struct{})
+	s.connectionsMu = new(sync.Mutex)
+	s.connections = make(map[net.Conn]struct{})
 	s.stoppingChan = make(chan struct{})
 
 	server := http.Server{
@@ -38,16 +38,10 @@ func (s *httpServer) Run(signals <-chan os.Signal, ready chan<- struct{}) error 
 			switch state {
 			case http.StateNew:
 				s.connectionWaitGroup.Add(1)
-				s.addInactiveConnection(conn)
-
-			case http.StateIdle:
-				s.addInactiveConnection(conn)
-
-			case http.StateActive:
-				s.removeInactiveConnection(conn)
+				s.addConnection(conn)
 
 			case http.StateHijacked, http.StateClosed:
-				s.removeInactiveConnection(conn)
+				s.removeConnection(conn)
 				s.connectionWaitGroup.Done()
 			}
 		},
@@ -70,36 +64,38 @@ func (s *httpServer) Run(signals <-chan os.Signal, ready chan<- struct{}) error 
 		case err = <-serverErrChan:
 			return err
 
-		case <-signals:
+		case sig := <-signals:
 			close(s.stoppingChan)
 
 			listener.Close()
 
-			s.inactiveConnectionsMu.Lock()
-			for c := range s.inactiveConnections {
+			s.connectionsMu.Lock()
+			for c := range s.connections {
 				c.Close()
 			}
-			s.inactiveConnectionsMu.Unlock()
+			s.connectionsMu.Unlock()
 
-			s.connectionWaitGroup.Wait()
+			if sig != os.Kill {
+				s.connectionWaitGroup.Wait()
+			}
 			return nil
 		}
 	}
 }
 
-func (s *httpServer) addInactiveConnection(conn net.Conn) {
+func (s *httpServer) addConnection(conn net.Conn) {
 	select {
 	case <-s.stoppingChan:
 		conn.Close()
 	default:
-		s.inactiveConnectionsMu.Lock()
-		s.inactiveConnections[conn] = struct{}{}
-		s.inactiveConnectionsMu.Unlock()
+		s.connectionsMu.Lock()
+		s.connections[conn] = struct{}{}
+		s.connectionsMu.Unlock()
 	}
 }
 
-func (s *httpServer) removeInactiveConnection(conn net.Conn) {
-	s.inactiveConnectionsMu.Lock()
-	delete(s.inactiveConnections, conn)
-	s.inactiveConnectionsMu.Unlock()
+func (s *httpServer) removeConnection(conn net.Conn) {
+	s.connectionsMu.Lock()
+	delete(s.connections, conn)
+	s.connectionsMu.Unlock()
 }
