@@ -1,6 +1,7 @@
 package http_server
 
 import (
+	"crypto/tls"
 	"net"
 	"net/http"
 	"os"
@@ -17,12 +18,22 @@ type httpServer struct {
 	inactiveConnections   map[net.Conn]struct{}
 	inactiveConnectionsMu *sync.Mutex
 	stoppingChan          chan struct{}
+
+	tlsConfig *tls.Config
 }
 
 func New(address string, handler http.Handler) ifrit.Runner {
 	return &httpServer{
 		address: address,
 		handler: handler,
+	}
+}
+
+func NewTLSServer(address string, handler http.Handler, tlsConfig *tls.Config) ifrit.Runner {
+	return &httpServer{
+		address:   address,
+		handler:   handler,
+		tlsConfig: tlsConfig,
 	}
 }
 
@@ -33,7 +44,8 @@ func (s *httpServer) Run(signals <-chan os.Signal, ready chan<- struct{}) error 
 	s.stoppingChan = make(chan struct{})
 
 	server := http.Server{
-		Handler: s.handler,
+		Handler:   s.handler,
+		TLSConfig: s.tlsConfig,
 		ConnState: func(conn net.Conn, state http.ConnState) {
 			switch state {
 			case http.StateNew:
@@ -56,6 +68,10 @@ func (s *httpServer) Run(signals <-chan os.Signal, ready chan<- struct{}) error 
 	listener, err := net.Listen("tcp", s.address)
 	if err != nil {
 		return err
+	}
+
+	if server.TLSConfig != nil {
+		listener = tls.NewListener(listener, server.TLSConfig)
 	}
 
 	serverErrChan := make(chan error, 1)

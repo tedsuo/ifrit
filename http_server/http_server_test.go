@@ -1,9 +1,12 @@
 package http_server_test
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"path"
 	"syscall"
 
 	. "github.com/onsi/ginkgo"
@@ -31,7 +34,6 @@ var _ = Describe("HttpServer", func() {
 		finishRequestChan = make(chan struct{}, 1)
 		port := 8000 + GinkgoParallelNode()
 		address = fmt.Sprintf("127.0.0.1:%d", port)
-		server = http_server.New(address, handler)
 	})
 
 	Describe("Envoke", func() {
@@ -39,6 +41,7 @@ var _ = Describe("HttpServer", func() {
 
 		Context("when the server starts successfully", func() {
 			BeforeEach(func() {
+				server = http_server.New(address, handler)
 				process = ifrit.Envoke(server)
 			})
 
@@ -121,6 +124,91 @@ var _ = Describe("HttpServer", func() {
 				Ω(err).Should(HaveOccurred())
 			})
 		})
+
+		Context("and it starts a server with TLS", func() {
+			var tlsConfig *tls.Config
+			type httpResponse struct {
+				response *http.Response
+				err      error
+			}
+			var responses chan httpResponse
+
+			BeforeEach(func() {
+				basePath := path.Join(os.Getenv("GOPATH"), "src", "github.com", "tedsuo", "ifrit", "http_server", "test_certs")
+				certFile := path.Join(basePath, "server.crt")
+				keyFile := path.Join(basePath, "server.key")
+
+				tlsCert, err := tls.LoadX509KeyPair(certFile, keyFile)
+				Expect(err).NotTo(HaveOccurred())
+
+				tlsConfig = &tls.Config{
+					Certificates:       []tls.Certificate{tlsCert},
+					InsecureSkipVerify: true,
+				}
+
+				server = http_server.NewTLSServer(address, handler, tlsConfig)
+				process = ifrit.Envoke(server)
+			})
+
+			AfterEach(func() {
+				process.Signal(syscall.SIGINT)
+				Eventually(process.Wait()).Should(Receive())
+			})
+
+			Context("and a valid, secure request is in flight", func() {
+				BeforeEach(func() {
+					responses = make(chan httpResponse, 1)
+					go func() {
+						response, err := httpTLSGet("https://"+address, tlsConfig)
+						responses <- httpResponse{response, err}
+						close(responses)
+					}()
+					Eventually(startedRequestChan).Should(Receive())
+				})
+
+				AfterEach(func() {
+					Eventually(responses).Should(BeClosed())
+				})
+
+				It("serves tls-secured http requests with the given handler", func() {
+					finishRequestChan <- struct{}{}
+
+					var resp httpResponse
+					Eventually(responses).Should(Receive(&resp))
+
+					Ω(resp.err).ShouldNot(HaveOccurred())
+
+					body, err := ioutil.ReadAll(resp.response.Body)
+					Ω(err).ShouldNot(HaveOccurred())
+					Ω(string(body)).Should(Equal("yo"))
+				})
+			})
+
+			Context("and an insecure request is in flight", func() {
+				BeforeEach(func() {
+					responses = make(chan httpResponse, 1)
+					go func() {
+						response, err := httpGet("http://" + address)
+						responses <- httpResponse{response, err}
+						close(responses)
+					}()
+					Consistently(startedRequestChan).ShouldNot(Receive())
+				})
+
+				AfterEach(func() {
+					Eventually(responses).Should(BeClosed())
+				})
+
+				It("rejects insecure http requests and recieves an error", func() {
+					finishRequestChan <- struct{}{}
+
+					var resp httpResponse
+					Eventually(responses).Should(Receive(&resp))
+
+					Ω(resp.err).Should(HaveOccurred())
+				})
+			})
+		})
 	})
 })
 
@@ -128,6 +216,16 @@ func httpGet(url string) (*http.Response, error) {
 	client := http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
+		},
+	}
+	return client.Get(url)
+}
+
+func httpTLSGet(url string, tlsConfig *tls.Config) (*http.Response, error) {
+	client := http.Client{
+		Transport: &http.Transport{
+			Proxy:           http.ProxyFromEnvironment,
+			TLSClientConfig: tlsConfig,
 		},
 	}
 	return client.Get(url)
