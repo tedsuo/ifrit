@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/tedsuo/ifrit"
 )
@@ -71,7 +72,7 @@ func (s *httpServer) Run(signals <-chan os.Signal, ready chan<- struct{}) error 
 	}
 
 	if server.TLSConfig != nil {
-		listener = tls.NewListener(listener, server.TLSConfig)
+		listener = tls.NewListener(tcpKeepAliveListener{listener.(*net.TCPListener)}, server.TLSConfig)
 	}
 
 	serverErrChan := make(chan error, 1)
@@ -118,4 +119,18 @@ func (s *httpServer) removeInactiveConnection(conn net.Conn) {
 	s.inactiveConnectionsMu.Lock()
 	delete(s.inactiveConnections, conn)
 	s.inactiveConnectionsMu.Unlock()
+}
+
+type tcpKeepAliveListener struct {
+	*net.TCPListener
+}
+
+func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
+	tc, err := ln.AcceptTCP()
+	if err != nil {
+		return
+	}
+	tc.SetKeepAlive(true)
+	tc.SetKeepAlivePeriod(3 * time.Minute)
+	return tc, nil
 }
