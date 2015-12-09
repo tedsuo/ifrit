@@ -240,7 +240,7 @@ var _ = Describe("Ordered Group", func() {
 
 			started = make(chan struct{})
 			go func() {
-				groupProcess = ifrit.Envoke(groupRunner)
+				groupProcess = ifrit.Invoke(groupRunner)
 				close(started)
 			}()
 

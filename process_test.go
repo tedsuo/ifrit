@@ -2,6 +2,7 @@ package ifrit_test
 
 import (
 	"os"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/tedsuo/ifrit"
@@ -16,7 +17,7 @@ var _ = Describe("Process", func() {
 
 		BeforeEach(func() {
 			pinger = make(test_helpers.PingChan)
-			pingProc = ifrit.Envoke(pinger)
+			pingProc = ifrit.Invoke(pinger)
 			errChan = make(chan error)
 		})
 
@@ -62,7 +63,7 @@ var _ = Describe("Process", func() {
 		var proc ifrit.Process
 
 		BeforeEach(func(done Done) {
-			proc = ifrit.Envoke(test_helpers.NoReadyRunner)
+			proc = ifrit.Invoke(test_helpers.NoReadyRunner)
 			close(done)
 		})
 

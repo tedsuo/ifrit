@@ -44,7 +44,7 @@ var _ = Describe("dynamicGroup", func() {
 
 			pool = grouper.NewDynamic(nil, 3, 2)
 			client = pool.Client()
-			poolProcess = ifrit.Envoke(pool)
+			poolProcess = ifrit.Invoke(pool)
 
 			insert := client.Inserter()
 			Eventually(insert).Should(BeSent(member1))
@@ -76,7 +76,7 @@ var _ = Describe("dynamicGroup", func() {
 
 			pool = grouper.NewDynamic(nil, 3, 2)
 			client = pool.Client()
-			poolProcess = ifrit.Envoke(pool)
+			poolProcess = ifrit.Invoke(pool)
 
 			insert := client.Inserter()
 			Eventually(insert).Should(BeSent(member1))

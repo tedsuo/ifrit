@@ -36,13 +36,13 @@ var _ = Describe("HttpServer", func() {
 		address = fmt.Sprintf("127.0.0.1:%d", port)
 	})
 
-	Describe("Envoke", func() {
+	Describe("Invoke", func() {
 		var process ifrit.Process
 
 		Context("when the server starts successfully", func() {
 			BeforeEach(func() {
 				server = http_server.New(address, handler)
-				process = ifrit.Envoke(server)
+				process = ifrit.Invoke(server)
 			})
 
 			AfterEach(func() {
@@ -119,7 +119,7 @@ var _ = Describe("HttpServer", func() {
 			})
 
 			It("returns an error", func() {
-				process = ifrit.Envoke(server)
+				process = ifrit.Invoke(server)
 				err := <-process.Wait()
 				Ω(err).Should(HaveOccurred())
 			})
@@ -147,7 +147,7 @@ var _ = Describe("HttpServer", func() {
 				}
 
 				server = http_server.NewTLSServer(address, handler, tlsConfig)
-				process = ifrit.Envoke(server)
+				process = ifrit.Invoke(server)
 			})
 
 			AfterEach(func() {
