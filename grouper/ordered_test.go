@@ -197,6 +197,7 @@ var _ = Describe("Ordered Group", func() {
 		var runnerIndex int64
 		var startOrder chan int64
 		var stopOrder chan int64
+		var receivedSignals chan os.Signal
 
 		makeRunner := func(waitTime time.Duration) (ifrit.Runner, chan struct{}) {
 			quickExit := make(chan struct{})
@@ -216,66 +217,61 @@ var _ = Describe("Ordered Group", func() {
 			}), quickExit
 		}
 
-		BeforeEach(func() {
-			startOrder = make(chan int64, 3)
-			stopOrder = make(chan int64, 3)
+		makeSignalEchoRunner := func(waitTime time.Duration, name string) ifrit.Runner {
+			return ifrit.RunFunc(func(signals <-chan os.Signal, ready chan<- struct{}) error {
+				close(ready)
+				done := make(chan bool)
+				go func() {
+					time.Sleep(waitTime)
+					done <- true
+				}()
+			L:
+				for {
+					select {
+					case s := <-signals:
+						receivedSignals <- s
+					case _ = <-done:
+						break L
+					}
+				}
+				return nil
+			})
+		}
 
-			r1, _ := makeRunner(0)
-			r2, _ := makeRunner(30 * time.Millisecond)
-			r3, _ := makeRunner(50 * time.Millisecond)
-			members = grouper.Members{
-				{"child1", r1},
-				{"child2", r2},
-				{"child3", r3},
-			}
-		})
-
-		AfterEach(func() {
-			groupProcess.Signal(os.Kill)
-			Eventually(groupProcess.Wait()).Should(Receive())
-		})
-
-		JustBeforeEach(func() {
-			groupRunner = grouper.NewOrdered(os.Interrupt, members)
-
-			started = make(chan struct{})
-			go func() {
-				groupProcess = ifrit.Invoke(groupRunner)
-				close(started)
-			}()
-
-			Eventually(started).Should(BeClosed())
-		})
-
-		It("stops in reverse order", func() {
-			groupProcess.Signal(os.Kill)
-			Eventually(groupProcess.Wait()).Should(Receive())
-			close(startOrder)
-			close(stopOrder)
-
-			Ω(startOrder).To(HaveLen(len(stopOrder)))
-
-			order := []int64{}
-			for r := range startOrder {
-				order = append(order, r)
-			}
-
-			for i := len(stopOrder) - 1; i >= 0; i-- {
-				Ω(order[i]).To(Equal(<-stopOrder))
-			}
-		})
-
-		Context("when a runner stops", func() {
-			var quickExit chan struct{}
-
+		Context("when runner receives a single signal", func() {
 			BeforeEach(func() {
-				var r1 ifrit.Runner
-				r1, quickExit = makeRunner(0)
-				members[0].Runner = r1
+				startOrder = make(chan int64, 3)
+				stopOrder = make(chan int64, 3)
+
+				r1, _ := makeRunner(0)
+				r2, _ := makeRunner(30 * time.Millisecond)
+				r3, _ := makeRunner(50 * time.Millisecond)
+				members = grouper.Members{
+					{"child1", r1},
+					{"child2", r2},
+					{"child3", r3},
+				}
+			})
+
+			AfterEach(func() {
+				groupProcess.Signal(os.Kill)
+				Eventually(groupProcess.Wait()).Should(Receive())
+			})
+
+			JustBeforeEach(func() {
+				groupRunner = grouper.NewOrdered(os.Interrupt, members)
+
+				started = make(chan struct{})
+				go func() {
+					groupProcess = ifrit.Invoke(groupRunner)
+					close(started)
+				}()
+
+				Eventually(started).Should(BeClosed())
 			})
 
 			It("stops in reverse order", func() {
-				close(quickExit)
+				groupProcess.Signal(os.Kill)
 				Eventually(groupProcess.Wait()).Should(Receive())
 				close(startOrder)
 				close(stopOrder)
@@ -287,13 +283,120 @@ var _ = Describe("Ordered Group", func() {
 					order = append(order, r)
 				}
 
-				firstDeath := <-stopOrder
-				for i := len(order) - 1; i >= 0; i-- {
-					if order[i] == firstDeath {
-						continue
-					}
+				for i := len(stopOrder) - 1; i >= 0; i-- {
 					Ω(order[i]).To(Equal(<-stopOrder))
 				}
+			})
+
+			Context("when a runner stops", func() {
+				var quickExit chan struct{}
+
+				BeforeEach(func() {
+					var r1 ifrit.Runner
+					r1, quickExit = makeRunner(0)
+					members[0].Runner = r1
+				})
+
+				It("stops in reverse order", func() {
+					close(quickExit)
+					Eventually(groupProcess.Wait()).Should(Receive())
+					close(startOrder)
+					close(stopOrder)
+
+					Ω(startOrder).To(HaveLen(len(stopOrder)))
+
+					order := []int64{}
+					for r := range startOrder {
+						order = append(order, r)
+					}
+
+					firstDeath := <-stopOrder
+					for i := len(order) - 1; i >= 0; i-- {
+						if order[i] == firstDeath {
+							continue
+						}
+						Ω(order[i]).To(Equal(<-stopOrder))
+					}
+				})
+			})
+		})
+
+		Context("when a runner receives multiple signals", func() {
+			BeforeEach(func() {
+				startOrder = make(chan int64, 2)
+				stopOrder = make(chan int64, 2)
+
+				r1 := makeSignalEchoRunner(200*time.Millisecond, "child1")
+				r2 := makeSignalEchoRunner(100*time.Millisecond, "child2")
+				members = grouper.Members{
+					{"child1", r1},
+					{"child2", r2},
+				}
+			})
+
+			AfterEach(func() {
+				groupProcess.Signal(os.Kill)
+				Eventually(groupProcess.Wait()).Should(Receive())
+			})
+
+			JustBeforeEach(func() {
+				groupRunner = grouper.NewOrdered(os.Interrupt, members)
+
+				started = make(chan struct{})
+				go func() {
+					groupProcess = ifrit.Invoke(groupRunner)
+					close(started)
+				}()
+
+				Eventually(started).Should(BeClosed())
+			})
+
+			Context("of different types", func() {
+
+				BeforeEach(func() {
+					receivedSignals = make(chan os.Signal, 4)
+				})
+
+				It("allows the process to finish gracefully", func() {
+					groupProcess.Signal(syscall.SIGINT)
+					Consistently(groupProcess.Wait(), 20*time.Millisecond, 10*time.Millisecond).ShouldNot(Receive())
+					groupProcess.Signal(syscall.SIGUSR1)
+					Consistently(groupProcess.Wait(), 20*time.Millisecond, 10*time.Millisecond).ShouldNot(Receive())
+					groupProcess.Signal(syscall.SIGUSR2)
+					Consistently(groupProcess.Wait(), 20*time.Millisecond, 10*time.Millisecond).ShouldNot(Receive())
+
+					Eventually(groupProcess.Wait()).Should(Receive())
+
+					signals := []os.Signal{syscall.SIGINT, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGUSR2}
+					for _, expectedSig := range signals {
+						actualSig := <-receivedSignals
+						Expect(actualSig).Should(Equal(expectedSig))
+					}
+				})
+			})
+
+			Context("of same type", func() {
+
+				BeforeEach(func() {
+					receivedSignals = make(chan os.Signal, 2)
+				})
+
+				It("allows the process to finish gracefully", func() {
+					groupProcess.Signal(syscall.SIGUSR1)
+					Consistently(groupProcess.Wait(), 20*time.Millisecond, 10*time.Millisecond).ShouldNot(Receive())
+					groupProcess.Signal(syscall.SIGUSR1)
+					Consistently(groupProcess.Wait(), 20*time.Millisecond, 10*time.Millisecond).ShouldNot(Receive())
+					groupProcess.Signal(syscall.SIGUSR1)
+					Consistently(groupProcess.Wait(), 20*time.Millisecond, 10*time.Millisecond).ShouldNot(Receive())
+
+					Eventually(groupProcess.Wait()).Should(Receive())
+
+					signals := []os.Signal{syscall.SIGUSR1, syscall.SIGUSR1}
+					for _, expectedSig := range signals {
+						actualSig := <-receivedSignals
+						Expect(actualSig).Should(Equal(expectedSig))
+					}
+				})
 			})
 		})
 	})
