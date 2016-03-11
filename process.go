@@ -14,7 +14,7 @@ type Process interface {
 	Wait() <-chan error
 
 	// Signal sends a shutdown signal to the Process.  It does not block.
-	Signal(os.Signal)
+	Signal(Signal)
 }
 
 /*
@@ -23,8 +23,8 @@ for ready allows program initializtion to be scripted in a procedural manner.
 To orcestrate the startup and monitoring of multiple Processes, please refer to
 the ifrit/grouper package.
 */
-func Invoke(r Runner) Process {
-	p := Background(r)
+func Invoke(span opentracing.Span, r Runner) Process {
+	p := Background(span,r)
 
 	select {
 	case <-p.Ready():
@@ -35,45 +35,36 @@ func Invoke(r Runner) Process {
 }
 
 /*
-Envoke is deprecated in favor of Invoke, on account of it not being a real word.
-*/
-func Envoke(r Runner) Process {
-	return Invoke(r)
-}
-
-/*
 Background executes a Runner and returns a Process immediately, without waiting.
 */
-func Background(r Runner) Process {
-	p := newProcess(r)
+func Background(span opentracing.Span, r Runner) Process {
+	p := newProcess(span,r)
 	go p.run()
 	return p
 }
 
 type process struct {
+	ctx context
 	runner     Runner
-	signals    chan os.Signal
-	ready      chan struct{}
 	exited     chan struct{}
 	exitStatus error
 }
 
-func newProcess(runner Runner) *process {
+func newProcess(span opentracing.Span,runner Runner) *process {
 	return &process{
+		ctx: NewContext(span),
 		runner:  runner,
-		signals: make(chan os.Signal),
-		ready:   make(chan struct{}),
 		exited:  make(chan struct{}),
 	}
 }
 
 func (p *process) run() {
-	p.exitStatus = p.runner.Run(p.signals, p.ready)
+	p.exitStatus = p.runner.Run(p.ctx)
 	close(p.exited)
 }
 
 func (p *process) Ready() <-chan struct{} {
-	return p.ready
+	return p.ctx.readyChan
 }
 
 func (p *process) Wait() <-chan error {
@@ -87,10 +78,10 @@ func (p *process) Wait() <-chan error {
 	return exitChan
 }
 
-func (p *process) Signal(signal os.Signal) {
+func (p *process) Signal(signal Signal) {
 	go func() {
 		select {
-		case p.signals <- signal:
+		case p.ctx.signalChan <- signal:
 		case <-p.exited:
 		}
 	}()

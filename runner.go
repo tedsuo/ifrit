@@ -2,6 +2,52 @@ package ifrit
 
 import "os"
 
+type Signal interface {
+  os.Signal
+  context.Context
+}
+
+type signal struct{
+  os.Signal
+  context.Context
+}
+
+func NewSignal(sig os.Signal,ctx context.Context) Signal {
+  return &signal{sig,ctx}
+}
+
+type Context interface {
+  Ready()
+  Signals() <-chan Signal
+  Span() opentracing.Span
+}
+
+type context struct{
+  signalChan
+  readyChan
+  opentracing.Span
+}
+
+func NewContext(s opentracing.Span) Context {
+  return context{
+  make(signalChan),
+  make(readyChan),
+  s,
+  }
+}
+
+type signalChan chan Signal
+
+func (s signalChan) Signals() <-chan Signal {
+  return s
+}
+
+type readyChan chan struct{}
+
+func (r readyChan) Ready() {
+  close(r)
+}
+
 /*
 A Runner defines the contents of a Process. A Runner implementation performs an
 aribtrary unit of work, while waiting for a shutdown signal. The unit of work
@@ -22,7 +68,7 @@ By default, Runners are not considered restartable; Run will only be called once
 See the ifrit/restart package for details on restartable Runners.
 */
 type Runner interface {
-	Run(signals <-chan os.Signal, ready chan<- struct{}) error
+	Run(Context) error
 }
 
 /*
@@ -30,8 +76,8 @@ The RunFunc type is an adapter to allow the use of ordinary functions as Runners
 If f is a function that matches the Run method signature, RunFunc(f) is a Runner
 object that calls f.
 */
-type RunFunc func(signals <-chan os.Signal, ready chan<- struct{}) error
+type RunFunc func(Context) error
 
-func (r RunFunc) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
-	return r(signals, ready)
+func (r RunFunc) Run(ctx Context) error {
+	return r(ctx)
 }
