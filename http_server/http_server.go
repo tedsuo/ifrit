@@ -11,9 +11,15 @@ import (
 	"github.com/tedsuo/ifrit"
 )
 
+const (
+	TCP  = "tcp"
+	UNIX = "unix"
+)
+
 type httpServer struct {
-	address string
-	handler http.Handler
+	protocol string
+	address  string
+	handler  http.Handler
 
 	connectionWaitGroup   *sync.WaitGroup
 	inactiveConnections   map[net.Conn]struct{}
@@ -23,19 +29,29 @@ type httpServer struct {
 	tlsConfig *tls.Config
 }
 
-func New(address string, handler http.Handler) ifrit.Runner {
-	return &httpServer{
-		address: address,
-		handler: handler,
-	}
-}
-
-func NewTLSServer(address string, handler http.Handler, tlsConfig *tls.Config) ifrit.Runner {
+func newServerWithListener(protocol, address string, handler http.Handler, tlsConfig *tls.Config) ifrit.Runner {
 	return &httpServer{
 		address:   address,
 		handler:   handler,
 		tlsConfig: tlsConfig,
+		protocol:  protocol,
 	}
+}
+
+func NewUnixServer(address string, handler http.Handler) ifrit.Runner {
+	return newServerWithListener(UNIX, address, handler, nil)
+}
+
+func New(address string, handler http.Handler) ifrit.Runner {
+	return newServerWithListener(TCP, address, handler, nil)
+}
+
+func NewUnixTLSServer(address string, handler http.Handler, tlsConfig *tls.Config) ifrit.Runner {
+	return newServerWithListener(UNIX, address, handler, tlsConfig)
+}
+
+func NewTLSServer(address string, handler http.Handler, tlsConfig *tls.Config) ifrit.Runner {
+	return newServerWithListener(TCP, address, handler, tlsConfig)
 }
 
 func (s *httpServer) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
@@ -66,13 +82,9 @@ func (s *httpServer) Run(signals <-chan os.Signal, ready chan<- struct{}) error 
 		},
 	}
 
-	listener, err := net.Listen("tcp", s.address)
+	listener, err := s.getListener(server.TLSConfig)
 	if err != nil {
 		return err
-	}
-
-	if server.TLSConfig != nil {
-		listener = tls.NewListener(tcpKeepAliveListener{listener.(*net.TCPListener)}, server.TLSConfig)
 	}
 
 	serverErrChan := make(chan error, 1)
@@ -102,6 +114,24 @@ func (s *httpServer) Run(signals <-chan os.Signal, ready chan<- struct{}) error 
 			return nil
 		}
 	}
+}
+
+func (s *httpServer) getListener(tlsConfig *tls.Config) (net.Listener, error) {
+	listener, err := net.Listen(s.protocol, s.address)
+	if err != nil {
+		return nil, err
+	}
+	if tlsConfig == nil {
+		return listener, nil
+	}
+	switch s.protocol {
+	case TCP:
+		listener = tls.NewListener(tcpKeepAliveListener{listener.(*net.TCPListener)}, tlsConfig)
+	default:
+		listener = tls.NewListener(listener, tlsConfig)
+	}
+
+	return listener, nil
 }
 
 func (s *httpServer) addInactiveConnection(conn net.Conn) {
