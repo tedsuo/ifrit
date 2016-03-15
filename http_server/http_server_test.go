@@ -54,7 +54,7 @@ var _ = Describe("HttpServer", func() {
 
 				socketPath = path.Join(tmpdir, "ifrit.sock")
 				Ω(err).ShouldNot(HaveOccurred())
-				server = http_server.NewWithListener("unix", socketPath, unixHandler)
+				server = http_server.NewUnixServer(socketPath, unixHandler)
 				process = ifrit.Invoke(server)
 			})
 
@@ -185,7 +185,7 @@ var _ = Describe("HttpServer", func() {
 
 				socketPath = path.Join(tmpdir, "ifrit.sock")
 				Ω(err).ShouldNot(HaveOccurred())
-				server = http_server.NewTLSServerWithListener("unix", socketPath, unixHandler, tlsConfig)
+				server = http_server.NewUnixTLSServer(socketPath, unixHandler, tlsConfig)
 				process = ifrit.Invoke(server)
 			})
 			AfterEach(func() {
