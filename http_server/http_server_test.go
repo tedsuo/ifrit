@@ -13,6 +13,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/tedsuo/ifrit"
 	"github.com/tedsuo/ifrit/http_server"
+	"github.com/tedsuo/ifrit/http_server/unix_transport"
 )
 
 var _ = Describe("HttpServer", func() {
@@ -38,6 +39,39 @@ var _ = Describe("HttpServer", func() {
 
 	Describe("Invoke", func() {
 		var process ifrit.Process
+		var socketPath string
+
+		Context("when the server is started with a different net Protocol.", func() {
+			var tmpdir string
+
+			BeforeEach(func() {
+				unixHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Write([]byte("yo"))
+				})
+				var err error
+				tmpdir, err = ioutil.TempDir(os.TempDir(), "ifrit-server-test")
+				Ω(err).ShouldNot(HaveOccurred())
+
+				socketPath = path.Join(tmpdir, "ifrit.sock")
+				Ω(err).ShouldNot(HaveOccurred())
+				server = http_server.NewWithListener("unix", socketPath, unixHandler)
+				process = ifrit.Invoke(server)
+			})
+
+			AfterEach(func() {
+				process.Signal(syscall.SIGINT)
+				Eventually(process.Wait()).Should(Receive())
+			})
+
+			It("serves requests with the given handler", func() {
+				resp, err := httpGetUnix("unix://"+socketPath+"/", socketPath)
+
+				Ω(err).ShouldNot(HaveOccurred())
+				body, err := ioutil.ReadAll(resp.Body)
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(string(body)).Should(Equal("yo"))
+			})
+		})
 
 		Context("when the server starts successfully", func() {
 			BeforeEach(func() {
@@ -122,6 +156,50 @@ var _ = Describe("HttpServer", func() {
 				process = ifrit.Invoke(server)
 				err := <-process.Wait()
 				Ω(err).Should(HaveOccurred())
+			})
+		})
+
+		Context("when the TLS server is started with a different net Protocol.", func() {
+			var tlsConfig *tls.Config
+			var tmpdir string
+			var socketPath string
+
+			BeforeEach(func() {
+				basePath := path.Join(os.Getenv("GOPATH"), "src", "github.com", "tedsuo", "ifrit", "http_server", "test_certs")
+				certFile := path.Join(basePath, "server.crt")
+				keyFile := path.Join(basePath, "server.key")
+
+				tlsCert, err := tls.LoadX509KeyPair(certFile, keyFile)
+				Expect(err).NotTo(HaveOccurred())
+
+				tlsConfig = &tls.Config{
+					Certificates:       []tls.Certificate{tlsCert},
+					InsecureSkipVerify: true,
+				}
+
+				unixHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Write([]byte("yo"))
+				})
+				tmpdir, err = ioutil.TempDir(os.TempDir(), "ifrit-server-test")
+				Ω(err).ShouldNot(HaveOccurred())
+
+				socketPath = path.Join(tmpdir, "ifrit.sock")
+				Ω(err).ShouldNot(HaveOccurred())
+				server = http_server.NewTLSServerWithListener("unix", socketPath, unixHandler, tlsConfig)
+				process = ifrit.Invoke(server)
+			})
+			AfterEach(func() {
+				process.Signal(syscall.SIGINT)
+				Eventually(process.Wait()).Should(Receive())
+			})
+
+			It("serves tls-secured http requests with the given handler", func() {
+
+				resp, err := httpTLSGetUnix("unix://"+socketPath+"/", socketPath, tlsConfig)
+				Ω(err).ShouldNot(HaveOccurred())
+				body, err := ioutil.ReadAll(resp.Body)
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(string(body)).Should(Equal("yo"))
 			})
 		})
 
@@ -212,6 +290,13 @@ var _ = Describe("HttpServer", func() {
 	})
 })
 
+func httpGetUnix(url, socketPath string) (*http.Response, error) {
+	client := http.Client{
+		Transport: unix_transport.New(socketPath),
+	}
+	return client.Get(url)
+}
+
 func httpGet(url string) (*http.Response, error) {
 	client := http.Client{
 		Transport: &http.Transport{
@@ -227,6 +312,13 @@ func httpTLSGet(url string, tlsConfig *tls.Config) (*http.Response, error) {
 			Proxy:           http.ProxyFromEnvironment,
 			TLSClientConfig: tlsConfig,
 		},
+	}
+	return client.Get(url)
+}
+
+func httpTLSGetUnix(url string, socketPath string, tlsConfig *tls.Config) (*http.Response, error) {
+	client := http.Client{
+		Transport: unix_transport.NewWithTLS(socketPath, tlsConfig),
 	}
 	return client.Get(url)
 }
