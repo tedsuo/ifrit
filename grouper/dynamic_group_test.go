@@ -126,7 +126,9 @@ var _ = Describe("dynamicGroup", func() {
 			exit2, exit3 := grouper.ExitEvent{}, grouper.ExitEvent{}
 
 			childRunner1.TriggerReady()
+			time.Sleep(time.Millisecond)
 			childRunner2.TriggerReady()
+			time.Sleep(time.Millisecond)
 			childRunner3.TriggerReady()
 			time.Sleep(time.Millisecond)
 
@@ -141,7 +143,9 @@ var _ = Describe("dynamicGroup", func() {
 			Consistently(entrances).ShouldNot(Receive())
 
 			childRunner1.TriggerExit(nil)
+			time.Sleep(time.Millisecond)
 			childRunner2.TriggerExit(nil)
+			time.Sleep(time.Millisecond)
 			childRunner3.TriggerExit(nil)
 			time.Sleep(time.Millisecond)
 
