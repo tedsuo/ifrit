@@ -170,6 +170,28 @@ var _ = Describe("Ordered Group", func() {
 			})
 		})
 
+		Describe("when the first member is started", func() {
+			var signals <-chan os.Signal
+
+			BeforeEach(func() {
+				childRunner1.WaitForCall()
+				childRunner1.TriggerReady()
+			})
+
+			Describe("and the first member exits while second member is setting up", func() {
+				BeforeEach(func() {
+					signals = childRunner2.WaitForCall()
+					childRunner1.TriggerExit(nil)
+				})
+
+				It("should terminate", func() {
+					var signal os.Signal
+					Eventually(signals).Should(Receive(&signal))
+					Expect(signal).To(Equal(syscall.SIGINT))
+				})
+			})
+		})
+
 		Describe("Failed start", func() {
 			BeforeEach(func() {
 				signal1 := childRunner1.WaitForCall()

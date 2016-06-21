@@ -55,15 +55,50 @@ func (g *orderedGroup) validate() error {
 func (g *orderedGroup) orderedStart(signals <-chan os.Signal) (os.Signal, ErrorTrace) {
 	for _, member := range g.members {
 		p := ifrit.Background(member)
-		select {
-		case <-p.Ready():
-			g.pool[member.Name] = p
-		case err := <-p.Wait():
+		cases := make([]reflect.SelectCase, 0, len(g.pool)+3)
+		for i := 0; i < len(g.pool); i++ {
+			cases = append(cases, reflect.SelectCase{
+				Dir:  reflect.SelectRecv,
+				Chan: reflect.ValueOf(g.pool[g.members[i].Name].Wait()),
+			})
+		}
+		cases = append(cases, reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(p.Ready()),
+		})
+
+		cases = append(cases, reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(p.Wait()),
+		})
+
+		cases = append(cases, reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(signals),
+		})
+
+		chosen, recv, _ := reflect.Select(cases)
+		g.pool[member.Name] = p
+		switch chosen {
+		case len(cases) - 1:
+			// signals
+			return recv.Interface().(os.Signal), nil
+		case len(cases) - 2:
+			// p.Wait
 			return nil, ErrorTrace{
-				ExitEvent{Member: member, Err: err},
+				ExitEvent{Member: member, Err: recv.Interface().(error)},
 			}
-		case signal := <-signals:
-			return signal, nil
+		case len(cases) - 3:
+			// p.Ready
+		default:
+			// other member has exited
+			var err error = nil
+			if e := recv.Interface(); e != nil {
+				err = e.(error)
+			}
+			return nil, ErrorTrace{
+				ExitEvent{Member: g.members[chosen], Err: err},
+			}
 		}
 	}
 
