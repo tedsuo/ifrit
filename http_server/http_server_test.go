@@ -173,8 +173,11 @@ var _ = Describe("HttpServer", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				tlsConfig = &tls.Config{
-					Certificates:       []tls.Certificate{tlsCert},
 					InsecureSkipVerify: true,
+				}
+
+				serverTlsConfig := &tls.Config{
+					Certificates:       []tls.Certificate{tlsCert},
 				}
 
 				unixHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -185,7 +188,7 @@ var _ = Describe("HttpServer", func() {
 
 				socketPath = path.Join(tmpdir, "ifrit.sock")
 				Ω(err).ShouldNot(HaveOccurred())
-				server = http_server.NewUnixTLSServer(socketPath, unixHandler, tlsConfig)
+				server = http_server.NewUnixTLSServer(socketPath, unixHandler, serverTlsConfig)
 				process = ifrit.Invoke(server)
 			})
 			AfterEach(func() {
@@ -220,11 +223,14 @@ var _ = Describe("HttpServer", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				tlsConfig = &tls.Config{
-					Certificates:       []tls.Certificate{tlsCert},
 					InsecureSkipVerify: true,
 				}
 
-				server = http_server.NewTLSServer(address, handler, tlsConfig)
+				serverTlsConfig := &tls.Config{
+					Certificates:       []tls.Certificate{tlsCert},
+				}
+
+				server = http_server.NewTLSServer(address, handler, serverTlsConfig)
 				process = ifrit.Invoke(server)
 			})
 

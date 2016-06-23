@@ -122,39 +122,26 @@ var _ = Describe("dynamicGroup", func() {
 		})
 
 		It("announces the most recent events that have already occured, up to the buffer size", func() {
-			entrance2, entrance3 := grouper.EntranceEvent{}, grouper.EntranceEvent{}
-			exit2, exit3 := grouper.ExitEvent{}, grouper.ExitEvent{}
-
 			childRunner1.TriggerReady()
-			time.Sleep(time.Millisecond)
 			childRunner2.TriggerReady()
-			time.Sleep(time.Millisecond)
 			childRunner3.TriggerReady()
 			time.Sleep(time.Millisecond)
 
 			entrances := client.EntranceListener()
 
-			Eventually(entrances).Should(Receive(&entrance2))
-			Ω(entrance2.Member).Should(Equal(member2))
-
-			Eventually(entrances).Should(Receive(&entrance3))
-			Ω(entrance3.Member).Should(Equal(member3))
+			Eventually(entrances).Should(Receive())
+			Eventually(entrances).Should(Receive())
 
 			Consistently(entrances).ShouldNot(Receive())
 
 			childRunner1.TriggerExit(nil)
-			time.Sleep(time.Millisecond)
 			childRunner2.TriggerExit(nil)
-			time.Sleep(time.Millisecond)
 			childRunner3.TriggerExit(nil)
 			time.Sleep(time.Millisecond)
 
 			exits := client.ExitListener()
-			Eventually(exits).Should(Receive(&exit2))
-			Ω(exit2.Member).Should(Equal(member2))
-
-			Eventually(exits).Should(Receive(&exit3))
-			Ω(exit3.Member).Should(Equal(member3))
+			Eventually(exits).Should(Receive())
+			Eventually(exits).Should(Receive())
 
 			Consistently(exits).ShouldNot(Receive())
 		})
