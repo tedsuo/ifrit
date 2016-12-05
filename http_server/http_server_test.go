@@ -2,8 +2,10 @@ package http_server_test
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"path"
@@ -287,6 +289,18 @@ var _ = Describe("HttpServer", func() {
 				})
 			})
 		})
+
+		Context("when the server uses a custom listener", func() {
+			It("eventually calls Accept on the listener", func() {
+				listener := NewMockListener()
+				handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
+				server = http_server.NewFromListener(listener, handler)
+
+				Consistently(listener.AcceptHasBeenCalled).Should(Not(Receive()))
+				ifrit.Invoke(server)
+				Eventually(listener.AcceptHasBeenCalled).Should(Receive())
+			})
+		})
 	})
 })
 
@@ -322,3 +336,21 @@ func httpTLSGetUnix(url string, socketPath string, tlsConfig *tls.Config) (*http
 	}
 	return client.Get(url)
 }
+
+type mockListener struct {
+	AcceptHasBeenCalled chan struct{}
+}
+
+func NewMockListener() *mockListener {
+	return &mockListener{
+		AcceptHasBeenCalled: make(chan struct{}),
+	}
+}
+
+func (c *mockListener) Accept() (net.Conn, error) {
+	c.AcceptHasBeenCalled <- struct{}{}
+
+	return nil, errors.New("not implemented")
+}
+func (c *mockListener) Close() error   { return nil }
+func (c *mockListener) Addr() net.Addr { return nil }
