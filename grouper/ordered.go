@@ -85,6 +85,9 @@ func (g *orderedGroup) orderedStart(signals <-chan os.Signal) (os.Signal, ErrorT
 			return recv.Interface().(os.Signal), nil
 		case len(cases) - 2:
 			// p.Wait
+			if recv.IsNil() {
+				return nil, nil
+			}
 			return nil, ErrorTrace{
 				ExitEvent{Member: member, Err: recv.Interface().(error)},
 			}
