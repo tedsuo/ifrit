@@ -190,6 +190,25 @@ var _ = Describe("Ordered Group", func() {
 					Expect(signal).To(Equal(syscall.SIGINT))
 				})
 			})
+
+			Describe("and the second member exits before becoming ready", func() {
+				BeforeEach(func() {
+					signals = childRunner1.WaitForCall()
+					childRunner2.TriggerExit(nil)
+				})
+
+				It("should terminate the first runner", func() {
+					var signal os.Signal
+					Eventually(signals).Should(Receive(&signal))
+					Expect(signal).To(Equal(syscall.SIGINT))
+				})
+
+				It("should not return an error", func() {
+					var err error
+					Eventually(groupProcess.Wait()).Should(Receive(&err))
+					Expect(err).NotTo(HaveOccurred())
+				})
+			})
 		})
 
 		Describe("Failed start", func() {
