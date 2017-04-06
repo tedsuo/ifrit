@@ -15,7 +15,7 @@ func Invoke(runner ifrit.Runner) ifrit.Process {
 	select {
 	case <-process.Ready():
 	case err := <-process.Wait():
-		ginkgo.Fail(fmt.Sprintf("process failed to start: %s", err))
+		ginkgo.Fail(fmt.Sprintf("process failed to start: %s", err), 1)
 	}
 
 	return process
