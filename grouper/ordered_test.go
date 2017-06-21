@@ -57,8 +57,12 @@ var _ = Describe("Ordered Group", func() {
 
 		BeforeEach(func() {
 			started = make(chan struct{})
+			groupProcess = ifrit.Background(groupRunner)
 			go func() {
-				groupProcess = ifrit.Invoke(groupRunner)
+				select {
+				case <-groupProcess.Ready():
+				case <-groupProcess.Wait():
+				}
 				close(started)
 			}()
 		})
@@ -201,9 +205,7 @@ var _ = Describe("Ordered Group", func() {
 					var signal os.Signal
 					Eventually(signals).Should(Receive(&signal))
 					Expect(signal).To(Equal(syscall.SIGINT))
-				})
-
-				It("should not return an error", func() {
+					childRunner1.TriggerExit(nil)
 					var err error
 					Eventually(groupProcess.Wait()).Should(Receive(&err))
 					Expect(err).NotTo(HaveOccurred())
