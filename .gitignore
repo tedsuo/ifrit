@@ -17,6 +17,9 @@ _test
 
 *.go-e
 
+# Test output
+*.test
+
 # Log files
 *.log
 
