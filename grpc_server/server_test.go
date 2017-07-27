@@ -7,6 +7,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	"os"
+	"path"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/tedsuo/ifrit"
@@ -14,8 +17,6 @@ import (
 	"github.com/tedsuo/ifrit/grpc_server"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/examples/helloworld/helloworld"
-	"os"
-	"path"
 )
 
 var _ = Describe("GRPCServer", func() {
@@ -104,30 +105,114 @@ var _ = Describe("GRPCServer", func() {
 
 	})
 
-	Context("when the inputs to NewGRPCServer are incorrectly typed", func() {
-		It("panics", func() {
-			Expect(func() {
-				grpc_server.NewGRPCServer(listenAddress, tlsConfig, &server{}, 42)
-			}).To(Panic())
-			Expect(func() {
-				grpc_server.NewGRPCServer(listenAddress, tlsConfig, &server{}, func() {})
-			}).To(Panic())
-			Expect(func() {
-				grpc_server.NewGRPCServer(listenAddress, tlsConfig, &server{}, func(a, b int) {})
-			}).To(Panic())
-			Expect(func() {
-				grpc_server.NewGRPCServer(listenAddress, tlsConfig, &server{}, func(a *grpc.Server, b int) {})
-			}).To(Panic())
-			Expect(func() {
+	Context("when the inputs to NewGRPCServer are invalid", func() {
+		var (
+			err error
+		)
+		JustBeforeEach(func() {
+			process := ifrit.Background(runner)
+			Eventually(process.Wait()).Should(Receive(&err))
+			Expect(err).To(HaveOccurred())
+		})
+
+		Context("when the registrar is an integer", func() {
+			BeforeEach(func() {
+				runner = grpc_server.NewGRPCServer(listenAddress, tlsConfig, &server{}, 42)
+			})
+			It("fails", func() {
+				Expect(err.Error()).To(ContainSubstring("should be func but is int"))
+			})
+		})
+
+		Context("when the registrar is nil", func() {
+			BeforeEach(func() {
+				runner = grpc_server.NewGRPCServer(listenAddress, tlsConfig, &server{}, nil)
+			})
+			It("fails", func() {
+				Expect(err.Error()).To(ContainSubstring("`serverRegistrar` and `handler` must be non nil"))
+			})
+		})
+
+		Context("when the registrar is nil", func() {
+			BeforeEach(func() {
+				runner = grpc_server.NewGRPCServer(listenAddress, tlsConfig, nil, helloworld.RegisterGreeterServer)
+			})
+			It("fails", func() {
+				Expect(err.Error()).To(ContainSubstring("`serverRegistrar` and `handler` must be non nil"))
+			})
+		})
+
+		Context("when the registrar is an empty func", func() {
+			BeforeEach(func() {
+				runner = grpc_server.NewGRPCServer(listenAddress, tlsConfig, &server{}, func() {})
+			})
+			It("fails", func() {
+				Expect(err.Error()).To(ContainSubstring("should have 2 parameters but it has 0 parameters"))
+			})
+		})
+
+		Context("when the registrar has bad parameters", func() {
+			BeforeEach(func() {
+				runner = grpc_server.NewGRPCServer(listenAddress, tlsConfig, &server{}, func(a, b int) {})
+			})
+			It("fails", func() {
+				Expect(err.Error()).To(ContainSubstring("first parameter must be `*grpc.Server` but is int"))
+			})
+		})
+
+		Context("when the registrar's first parameter is bad", func() {
+			BeforeEach(func() {
+				runner = grpc_server.NewGRPCServer(listenAddress, tlsConfig, &server{}, func(a, b int) {})
+			})
+			It("fails", func() {
+				Expect(err.Error()).To(ContainSubstring("first parameter must be `*grpc.Server` but is int"))
+			})
+		})
+
+		Context("when the registrar's second parameter is not an interface", func() {
+			BeforeEach(func() {
+				runner = grpc_server.NewGRPCServer(listenAddress, tlsConfig, &server{}, func(a *grpc.Server, b int) {})
+			})
+			It("fails", func() {
+				Expect(err.Error()).To(ContainSubstring("is not implemented by `handler`"))
+			})
+		})
+
+		Context("when the registrar's second parameter is not implemented", func() {
+			BeforeEach(func() {
+				runner = grpc_server.NewGRPCServer(listenAddress, tlsConfig, &server{}, func(a *grpc.Server, b testInterface) {})
+			})
+			It("fails", func() {
+				Expect(err.Error()).To(ContainSubstring("is not implemented by `handler`"))
+			})
+		})
+
+		Context("when the handler is a *struct but doesn't implement the registrar's second parameter", func() {
+			BeforeEach(func() {
+				runner = grpc_server.NewGRPCServer(listenAddress, tlsConfig, &notServer{}, helloworld.RegisterGreeterServer)
+			})
+			It("fails", func() {
+				Expect(err.Error()).To(ContainSubstring("is not implemented by `handler`"))
+			})
+		})
+
+		Context("when the handler is a int but doesn't implement the registrar's second parameter", func() {
+			BeforeEach(func() {
+				runner = grpc_server.NewGRPCServer(listenAddress, tlsConfig, 42, helloworld.RegisterGreeterServer)
+			})
+			It("fails", func() {
+				Expect(err.Error()).To(ContainSubstring("is not implemented by `handler`"))
+			})
+		})
+
+		Context("when the registrar returns a value", func() {
+			BeforeEach(func() {
 				f := func(a *grpc.Server, b helloworld.GreeterServer) error { return nil }
-				grpc_server.NewGRPCServer(listenAddress, tlsConfig, &server{}, f)
-			}).To(Panic())
-			Expect(func() {
-				grpc_server.NewGRPCServer(listenAddress, tlsConfig, &notServer{}, helloworld.RegisterGreeterServer)
-			}).To(Panic())
-			Expect(func() {
-				grpc_server.NewGRPCServer(listenAddress, tlsConfig, 42, helloworld.RegisterGreeterServer)
-			}).To(Panic())
+				runner = grpc_server.NewGRPCServer(listenAddress, tlsConfig, &server{}, f)
+			})
+			It("fails", func() {
+				Expect(err.Error()).To(ContainSubstring("should return no value but it returns 1 value"))
+			})
 		})
 	})
 })
@@ -142,3 +227,7 @@ func (s *server) SayHello(ctx context.Context, in *helloworld.HelloRequest) (*he
 
 // notServer doesn't implement anything
 type notServer struct{}
+
+type testInterface interface {
+	something(a int) int
+}
