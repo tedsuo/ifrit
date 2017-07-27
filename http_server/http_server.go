@@ -27,31 +27,51 @@ type httpServer struct {
 	stoppingChan          chan struct{}
 
 	tlsConfig *tls.Config
+
+	// If a listener is set, it will be used during the server.Serve() call.
+	// Otherwise, a listener will be constructed using the protocol, address, and tlsConfig values in this struct.
+	// Either the listener or (protocol, address, and tlsConfig) must be set.
+	listener net.Listener
 }
 
-func newServerWithListener(protocol, address string, handler http.Handler, tlsConfig *tls.Config) ifrit.Runner {
+func newServer(protocol, address string, handler http.Handler, tlsConfig *tls.Config) ifrit.Runner {
 	return &httpServer{
 		address:   address,
 		handler:   handler,
 		tlsConfig: tlsConfig,
 		protocol:  protocol,
+		listener:  nil,
+	}
+}
+
+func newServerWithListener(listener net.Listener, handler http.Handler) ifrit.Runner {
+	return &httpServer{
+		address:   "",
+		handler:   handler,
+		tlsConfig: nil,
+		protocol:  "",
+		listener:  listener,
 	}
 }
 
 func NewUnixServer(address string, handler http.Handler) ifrit.Runner {
-	return newServerWithListener(UNIX, address, handler, nil)
+	return newServer(UNIX, address, handler, nil)
 }
 
 func New(address string, handler http.Handler) ifrit.Runner {
-	return newServerWithListener(TCP, address, handler, nil)
+	return newServer(TCP, address, handler, nil)
 }
 
 func NewUnixTLSServer(address string, handler http.Handler, tlsConfig *tls.Config) ifrit.Runner {
-	return newServerWithListener(UNIX, address, handler, tlsConfig)
+	return newServer(UNIX, address, handler, tlsConfig)
 }
 
 func NewTLSServer(address string, handler http.Handler, tlsConfig *tls.Config) ifrit.Runner {
-	return newServerWithListener(TCP, address, handler, tlsConfig)
+	return newServer(TCP, address, handler, tlsConfig)
+}
+
+func NewFromListener(listener net.Listener, handler http.Handler) ifrit.Runner {
+	return newServerWithListener(listener, handler)
 }
 
 func (s *httpServer) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
@@ -127,6 +147,10 @@ func (s *httpServer) Run(signals <-chan os.Signal, ready chan<- struct{}) error 
 }
 
 func (s *httpServer) getListener(tlsConfig *tls.Config) (net.Listener, error) {
+	if s.listener != nil {
+		return s.listener, nil
+	}
+
 	listener, err := net.Listen(s.protocol, s.address)
 	if err != nil {
 		return nil, err
