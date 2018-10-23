@@ -58,7 +58,7 @@ func NewUnixServer(address string, handler http.Handler) ifrit.Runner {
 }
 
 func NewServerWithTimeout(address string, handler http.Handler, readTimeout, writeTimeout time.Duration) ifrit.Runner {
-	return newServerWithTimeout(protocol, address, handler, nil, readTimeout, writeTimeout)
+	return newServerWithTimeout(TCP, address, handler, nil, readTimeout, writeTimeout)
 }
 
 func New(address string, handler http.Handler) ifrit.Runner {
