@@ -8,18 +8,22 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tedsuo/ifrit"
+	"github.com/kcmannem/ifrit"
 )
 
 const (
-	TCP  = "tcp"
-	UNIX = "unix"
+	TCP        = "tcp"
+	UNIX       = "unix"
+	NO_TIMEOUT = 0 * time.Second
 )
 
 type httpServer struct {
 	protocol string
 	address  string
 	handler  http.Handler
+
+	readTimeout  time.Duration
+	writeTimeout time.Duration
 
 	connectionWaitGroup   *sync.WaitGroup
 	inactiveConnections   map[net.Conn]struct{}
@@ -40,6 +44,17 @@ func newServerWithListener(protocol, address string, handler http.Handler, tlsCo
 
 func NewUnixServer(address string, handler http.Handler) ifrit.Runner {
 	return newServerWithListener(UNIX, address, handler, nil)
+}
+
+func NewServerWithTimeout(address string, handler http.Handler, readTimeout, writeTimeout time.Duration) ifrit.Runner {
+	return &httpServer{
+		address:      address,
+		handler:      handler,
+		tlsConfig:    nil,
+		protocol:     TCP,
+		readTimeout:  readTimeout,
+		writeTimeout: writeTimeout,
+	}
 }
 
 func New(address string, handler http.Handler) ifrit.Runner {
@@ -82,6 +97,14 @@ func (s *httpServer) Run(signals <-chan os.Signal, ready chan<- struct{}) error 
 				connCountCh <- -1
 			}
 		},
+	}
+
+	if s.readTimeout != NO_TIMEOUT {
+		server.ReadTimeout = s.readTimeout
+	}
+
+	if s.writeTimeout != NO_TIMEOUT {
+		server.WriteTimeout = s.writeTimeout
 	}
 
 	listener, err := s.getListener(server.TLSConfig)
