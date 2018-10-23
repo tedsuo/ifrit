@@ -42,19 +42,23 @@ func newServerWithListener(protocol, address string, handler http.Handler, tlsCo
 	}
 }
 
+func newServerWithTimeout(protocol, address string, handler http.Handler, tlsConfig *tls.Config, readTimeout, writeTimeout time.Duration) ifrit.Runner {
+	return &httpServer{
+		address:      address,
+		handler:      handler,
+		tlsConfig:    tlsConfig,
+		protocol:     protocol,
+		readTimeout:  readTimeout,
+		writeTimeout: writeTimeout,
+	}
+}
+
 func NewUnixServer(address string, handler http.Handler) ifrit.Runner {
 	return newServerWithListener(UNIX, address, handler, nil)
 }
 
 func NewServerWithTimeout(address string, handler http.Handler, readTimeout, writeTimeout time.Duration) ifrit.Runner {
-	return &httpServer{
-		address:      address,
-		handler:      handler,
-		tlsConfig:    nil,
-		protocol:     TCP,
-		readTimeout:  readTimeout,
-		writeTimeout: writeTimeout,
-	}
+	return newServerWithTimeout(protocol, address, handler, nil, readTimeout, writeTimeout)
 }
 
 func New(address string, handler http.Handler) ifrit.Runner {
@@ -65,8 +69,16 @@ func NewUnixTLSServer(address string, handler http.Handler, tlsConfig *tls.Confi
 	return newServerWithListener(UNIX, address, handler, tlsConfig)
 }
 
+func NewUnixTLSServerWithTimeout(address string, handler http.Handler, tlsConfig *tls.Config, readTimeout, writeTimeout time.Duration) ifrit.Runner {
+	return newServerWithTimeout(UNIX, address, handler, tlsConfig, readTimeout, writeTimeout)
+}
+
 func NewTLSServer(address string, handler http.Handler, tlsConfig *tls.Config) ifrit.Runner {
 	return newServerWithListener(TCP, address, handler, tlsConfig)
+}
+
+func NewTLSServerWithTimeout(address string, handler http.Handler, tlsConfig *tls.Config, readTimeout, writeTimeout time.Duration) ifrit.Runner {
+	return newServerWithTimeout(TCP, address, handler, tlsConfig, readTimeout, writeTimeout)
 }
 
 func (s *httpServer) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
