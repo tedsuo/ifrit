@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kcmannem/ifrit"
+	"github.com/tedsuo/ifrit"
 )
 
 const (
