@@ -90,13 +90,12 @@ var _ = Describe("Ordered Group", func() {
 
 		Describe("when all the runners are ready", func() {
 			var (
-				signal1 <-chan os.Signal
 				signal2 <-chan os.Signal
 				signal3 <-chan os.Signal
 			)
 
 			BeforeEach(func() {
-				signal1 = childRunner1.WaitForCall()
+				childRunner1.WaitForCall()
 				childRunner1.TriggerReady()
 				signal2 = childRunner2.WaitForCall()
 				childRunner2.TriggerReady()
