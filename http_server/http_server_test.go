@@ -177,7 +177,7 @@ var _ = Describe("HttpServer", func() {
 				}
 
 				serverTlsConfig := &tls.Config{
-					Certificates:       []tls.Certificate{tlsCert},
+					Certificates: []tls.Certificate{tlsCert},
 				}
 
 				unixHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -227,7 +227,7 @@ var _ = Describe("HttpServer", func() {
 				}
 
 				serverTlsConfig := &tls.Config{
-					Certificates:       []tls.Certificate{tlsCert},
+					Certificates: []tls.Certificate{tlsCert},
 				}
 
 				server = http_server.NewTLSServer(address, handler, serverTlsConfig)
@@ -283,13 +283,14 @@ var _ = Describe("HttpServer", func() {
 					Eventually(responses).Should(BeClosed())
 				})
 
-				It("rejects insecure http requests and recieves an error", func() {
+				It("rejects insecure http requests and receives an error", func() {
 					finishRequestChan <- struct{}{}
 
 					var resp httpResponse
 					Eventually(responses).Should(Receive(&resp))
 
-					Ω(resp.err).Should(HaveOccurred())
+					Ω(resp.err).ShouldNot(HaveOccurred())
+					Ω(resp.response.StatusCode).Should(Equal(http.StatusBadRequest))
 				})
 			})
 		})
