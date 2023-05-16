@@ -1,4 +1,4 @@
-module ifrit
+module github.com/tedsuo/ifrit
 
 go 1.16
 
