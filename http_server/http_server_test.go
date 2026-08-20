@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path"
 	"syscall"
 
@@ -301,6 +302,25 @@ var _ = Describe("HttpServer", func() {
 				})
 			})
 		})
+	})
+})
+
+// Subprocess regression test — catches os.Exit / log.Fatalf in library code
+//
+// This test re-executes the compiled test binary as a child process with
+// IFRIT_HTTP_SERVER_SUBPROCESS=1. TestMain (in the suite file) intercepts that
+// flag and runs the server lifecycle without starting Ginkgo. If the library
+// ever calls log.Fatalf during shutdown, the child exits non-zero and this
+// test fails with a clear message — rather than silently killing the Ginkgo
+// parallel runner and producing the opaque "timed out waiting for all parallel
+// procs to report back" failure that was seen in guardian.
+var _ = Describe("HttpServer subprocess shutdown", func() {
+	It("exits with status 0 after graceful shutdown (no os.Exit in library)", func() {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHttpServer", "-test.v=false")
+		cmd.Env = append(os.Environ(), "IFRIT_HTTP_SERVER_SUBPROCESS=1")
+		out, err := cmd.CombinedOutput()
+		Ω(err).ShouldNot(HaveOccurred(),
+			"subprocess exited non-zero — library may have called log.Fatalf or os.Exit:\n"+string(out))
 	})
 })
 
