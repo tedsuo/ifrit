@@ -142,6 +142,13 @@ var _ = Describe("HttpServer", func() {
 						finishRequestChan <- struct{}{}
 						Eventually(process.Wait()).Should(Receive())
 					})
+
+					It("exits cleanly without error after graceful shutdown", func() {
+						finishRequestChan <- struct{}{}
+						var exitErr error
+						Eventually(process.Wait()).Should(Receive(&exitErr))
+						Ω(exitErr).ShouldNot(HaveOccurred())
+					})
 				})
 			})
 		})
